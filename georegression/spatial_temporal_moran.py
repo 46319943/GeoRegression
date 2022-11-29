@@ -35,9 +35,9 @@ def calculate_spatial_temporal_local_moran(y, spatial_temporal_weight):
     return u * a
 
 
-def plot_moran_diagram(y, spatial_temporal_weight):
+def plot_moran_diagram(y, weight_matrix):
     y_center = y - np.mean(y)
-    y_neighbour = np.matmul(spatial_temporal_weight, y_center)
+    y_neighbour = np.matmul(weight_matrix, y_center)
     plt.scatter(y_center, y_neighbour, s=10, edgecolors="k", alpha=0.5)
     plt.axhline(y=0, color='k', linewidth=1)  # added because i want the origin
     plt.axvline(x=0, color='k', linewidth=1)

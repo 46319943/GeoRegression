@@ -87,8 +87,7 @@ class StackingWeightModel(WeightModel):
         self.meta_estimator_list = self.local_estimator_list
         self.local_estimator_list = None
 
-        N = X.shape[0]
-        neighbour_matrix = weight_matrix > 0
+        neighbour_matrix = self.weight_matrix_ > 0
 
         # TODO: Add parallel
         # Indicator of input data for each local estimator.
@@ -100,8 +99,8 @@ class StackingWeightModel(WeightModel):
 
         # Iterate the stacking estimator list to get the transformed X meta.
         t_predict_s = time()
-        X_meta = np.zeros((N, N))
-        for i in range(N):
+        X_meta = np.zeros((self.N, self.N))
+        for i in range(self.N):
             X_meta[second_neighbour_matrix[i], i] = self.meta_estimator_list[i].predict_by_weight(
                 X[second_neighbour_matrix[i]])
         t_predict_e = time()
@@ -112,7 +111,7 @@ class StackingWeightModel(WeightModel):
         local_stacking_estimator_list = []
         indexing_time = 0
         stacking_time = 0
-        for i in range(N):
+        for i in range(self.N):
             # TODO: Use RidgeCV to find best alpha
             final_estimator = Ridge(alpha=10, solver='lsqr')
             # stacking_estimator = RidgeCV()
@@ -151,6 +150,8 @@ class StackingWeightModel(WeightModel):
         self.local_estimator_list = local_stacking_estimator_list
 
         return self
+
+    # TODO: Implement predict_by_fit
 
 
 class StackingEstimator(BaseEstimator):

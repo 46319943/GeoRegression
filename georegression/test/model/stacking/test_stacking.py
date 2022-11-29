@@ -2,6 +2,7 @@ from sklearn.linear_model import LinearRegression
 
 from georegression.test.data import load_HP, load_ESI
 from georegression.weight_model import WeightModel
+from georegression.stacking_model import StackingWeightModel
 
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor
@@ -11,10 +12,36 @@ from sklearn.ensemble import StackingRegressor
 
 # X, y_true, xy_vector, time = load_TOD()
 X, y_true, xy_vector, time = load_HP()
+
+
 # X, y_true, xy_vector, time = load_ESI()
 
 
 def test_stacking():
+    local_estimator = DecisionTreeRegressor(splitter='random', max_depth=2)
+    distance_measure = 'euclidean'
+    kernel_type = 'bisquare'
+    distance_ratio = None
+    bandwidth = None
+    neighbour_count = 0.01
+    midpoint = True
+    p = None
+
+    model = StackingWeightModel(
+        local_estimator,
+        distance_measure,
+        kernel_type,
+        distance_ratio,
+        bandwidth,
+        neighbour_count,
+        midpoint, p
+    )
+
+    model.fit(X, y_true, [xy_vector, time])
+    print(f'{model.llocv_score_}, {model.llocv_stacking_}')
+
+
+def test_performance():
     local_estimator = DecisionTreeRegressor(splitter='random', max_depth=2)
     distance_measure = 'euclidean'
     kernel_type = 'bisquare'
