@@ -59,3 +59,31 @@ def calculate_distance_one_to_many(one_coordinate_vector, many_coordinate_vector
         return great_circle_distance(one_coordinate_vector, many_coordinate_vector)
     else:
         raise Exception('Unsupported distance measure')
+
+
+def euclidean_distance_matrix(X, Y):
+    """
+    Implement from https://jaykmody.com/blog/distance-matrices-with-numpy/
+    But it's not as efficient as said in the blog.
+    Nevertheless, it's a good chance to dive deep into some calculation.
+    """
+    # this has the same affect as taking the dot product of each row with itself
+    x2 = np.sum(X ** 2, axis=1)  # shape of (m)
+    y2 = np.sum(Y ** 2, axis=1)  # shape of (n)
+
+    # we can compute all x_i * y_j and store it in a matrix at xy[i][j] by
+    # taking the matrix multiplication between X and X_train transpose
+    # if you're stuggling to understand this, draw out the matrices and
+    # do the matrix multiplication by hand
+    # (m, d) x (d, n) -> (m, n)
+    xy = np.matmul(X, Y.T)
+
+    # each row in xy needs to be added with x2[i]
+    # each column of xy needs to be added with y2[j]
+    # to get everything to play well, we'll need to reshape
+    # x2 from (m) -> (m, 1), numpy will handle the rest of the broadcasting for us
+    # see: https://numpy.org/doc/stable/user/basics.broadcasting.html
+    x2 = x2.reshape(-1, 1)
+    dists = x2 - 2 * xy + y2  # (m, 1) repeat columnwise + (m, n) + (n) repeat rowwise -> (m, n)
+
+    return dists

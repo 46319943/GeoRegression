@@ -102,7 +102,8 @@ class StackingWeightModel(WeightModel):
         t_predict_s = time()
         X_meta = np.zeros((N, N))
         for i in range(N):
-            X_meta[second_neighbour_matrix[i], i] = self.meta_estimator_list[i].predict_by_weight(X[second_neighbour_matrix[i]])
+            X_meta[second_neighbour_matrix[i], i] = self.meta_estimator_list[i].predict_by_weight(
+                X[second_neighbour_matrix[i]])
         t_predict_e = time()
         print('predict_by_weight elapsed', t_predict_e - t_predict_s)
 
@@ -153,18 +154,14 @@ class StackingWeightModel(WeightModel):
 
 
 class StackingEstimator(BaseEstimator):
-    def __init__(
-            self,
-            final_estimator,
-            meta_estimators,
-    ):
+    def __init__(self, final_estimator, meta_estimators):
         self.final_estimator = final_estimator
         self.meta_estimators = meta_estimators
 
     def predict(self, X):
         X_meta = [
-            meta_estimator.predict_by_weight(X)
+            meta_estimator.predict(X)
             for meta_estimator in self.meta_estimators
         ]
         X_meta = np.hstack(X_meta)
-        return self.final_estimator.predict_by_weight(X_meta)
+        return self.final_estimator.predict(X_meta)
