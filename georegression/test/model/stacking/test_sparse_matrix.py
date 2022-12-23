@@ -1,4 +1,4 @@
-from numba import njit
+from numba import njit, prange
 from scipy.sparse import csr_matrix
 import numpy as np
 

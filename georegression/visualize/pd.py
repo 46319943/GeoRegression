@@ -13,9 +13,7 @@ import plotly.graph_objects as go
 from georegression.visualize.scatter import scatter_3d
 from georegression.visualize.utils import vector_to_color
 
-# Create folder for saving plot
-folder = Path('Plot')
-folder.mkdir(exist_ok=True)
+from georegression.visualize import folder
 
 
 def select_partial(feature_partial, sample_size=None, quantile=None):
@@ -68,7 +66,7 @@ def select_partial(feature_partial, sample_size=None, quantile=None):
 
 def partial_plot_2d(
         feature_partial, temporal_vector, cluster_vector=None,
-        sample_size=None, quantile=None
+        sample_size=None, quantile=None, folder_=folder
 ):
     feature_count = len(feature_partial)
 
@@ -132,13 +130,13 @@ def partial_plot_2d(
     else:
         suffix = ''
 
-    plt.savefig(folder / f'GeoPDP{suffix}.png')
+    plt.savefig(folder_ / f'GeoPDP{suffix}.png')
     plt.close()
 
 
 def partial_plot_3d(
         feature_partial, temporal_vector, cluster_vector=None,
-        sample_size=None, quantile=None, is_ICE=False
+        sample_size=None, quantile=None, is_ICE=False, folder_=folder
 ):
     feature_count = len(feature_partial)
 
@@ -232,13 +230,13 @@ def partial_plot_3d(
         )
 
         if sample_size is not None:
-            suffix = '_Sample' + sample_size
+            suffix = f'_Sample{sample_size}'
         elif quantile is not None:
             suffix = '_Q' + ';'.join(map(str, quantile))
         else:
             suffix = ''
 
-        fig.write_html(folder / f'Geo{"PDP" if not is_ICE else "ICE"}_{feature_index}{suffix}.html')
+        fig.write_html(folder_ / f'Geo{"PDP" if not is_ICE else "ICE"}_{feature_index}{suffix}.html')
         fig_list.append(fig)
 
     return fig_list
@@ -349,7 +347,7 @@ def cluster_dendrogram_plot(distance_matrix, cluster_vector=None):
 
 def partial_cluster_plot(
         feature_distance, feature_cluster_label_list, distance_matrix, cluster_label,
-        geo_vector, temporal_vector, cluster_vector=None,
+        geo_vector, temporal_vector, cluster_vector=None, folder_=folder
 ):
     feature_count = feature_distance.shape[0]
 
@@ -358,24 +356,24 @@ def partial_cluster_plot(
         cluster_dendrogram_plot(feature_distance[feature_index])
         plt.title(f'Hierarchy Plot of Feature {feature_index}')
         # TODO: Save to where?
-        plt.savefig(folder / f'Hierarchy_{feature_index}.png')
+        plt.savefig(folder_ / f'Hierarchy_{feature_index}.png')
         plt.clf()
 
         # Plot the single feature cluster result
         scatter_3d(
             geo_vector, temporal_vector, feature_cluster_label_list[feature_index],
             f'Spatio-temporal Cluster Plot of Feature {feature_index}', 'Cluster Label',
-            f'Cluster_{feature_index}', is_cluster=True)
+            filename=f'Cluster_{feature_index}', is_cluster=True, folder_=folder_)
 
     cluster_dendrogram_plot(distance_matrix)
     plt.title('Hierarchy Plot of Integrated Feature')
-    plt.savefig(folder / f'Hierarchy_Integrated.png')
+    plt.savefig(folder_ / f'Hierarchy_Integrated.png')
     plt.clf()
 
     scatter_3d(
         geo_vector, temporal_vector, cluster_label,
         f'Integrated Spatio-temporal Cluster Plot', 'Cluster Label',
-        f'Cluster_Integrated', is_cluster=True)
+        filename=f'Cluster_Integrated', is_cluster=True, folder_=folder_)
 
 
 def show_plain_partial(X, local_estimator_list):

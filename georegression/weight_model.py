@@ -364,7 +364,9 @@ class WeightModel(BaseEstimator, RegressorMixin):
         Args:
             n_repeats ():
 
-        Returns: permutation_score_decrease_: Shape(Feature, n_repeats). Return average of each Feature.
+        Returns:
+            Return average of each Feature.
+            permutation_score_decrease_: Shape(Feature, n_repeats).
 
         """
         if not self.cache_data or not self.cache_estimator:

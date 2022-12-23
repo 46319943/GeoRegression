@@ -4,14 +4,13 @@ import numpy as np
 from plotly import express as px, graph_objects as go
 from georegression.visualize.utils import vector_to_color
 
-# Create folder for saving plot
-folder = Path('Plot')
-folder.mkdir(exist_ok=True)
+from georegression.visualize import folder
 
 
 def scatter_3d(
         geo_vector, temporal_vector, value,
-        figure_title, value_name, filename=None, is_cluster=False
+        figure_title, value_name, filename=None,
+        is_cluster=False, folder_=folder
 ):
     # Shape(N, )
     x = geo_vector[:, 0]
@@ -118,11 +117,11 @@ def scatter_3d(
     if x_interval < y_interval:
         x_aspect = 1
         y_aspect = y_interval / x_interval
-        z_aspect = y_interval * len(z_unique)
+        z_aspect = y_aspect * len(z_unique) * 0.6
     else:
         y_aspect = 1
         x_aspect = x_interval / y_interval
-        z_aspect = y_interval * len(z_unique)
+        z_aspect = x_aspect * len(z_unique) * 0.6
 
     fig.update_layout(
         # Clear margin
@@ -191,6 +190,6 @@ def scatter_3d(
     if filename is None:
         filename = f'{figure_title}_{value_name}'
 
-    fig.write_html(folder / f'{filename}.html')
+    fig.write_html(folder_ / f'{filename}.html')
 
     return fig
