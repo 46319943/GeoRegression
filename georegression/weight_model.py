@@ -88,6 +88,36 @@ def _fit(X, y, estimator_list, weight_matrix,
     return local_predict, local_estimator_list
 
 
+def local_partial_dependence(local_estimator, X_local, weight, n_features_in_):
+    """
+    Wrapper for parallel partial dependence calculation
+    """
+
+    # Partial result of each feature.
+    # [(x for feature1, y for feature1), (x for feature2, y for feature2), (...), ...]
+    feature_list = []
+
+    for feature_index in range(n_features_in_):
+        pdp = partial_dependence(
+            local_estimator,
+            X_local,
+            [feature_index],
+            kind='both'
+        )
+
+        values = pdp['values'][0]
+        individual = pdp['individual'][0]
+
+        # Must get individual partial dependence to weight the result
+        # Weight: Performance Weight. The point with more weight performance better in the model.
+        # So average the partial performance according to the weight.
+        weight_average = np.average(individual, axis=0, weights=weight)
+
+        feature_list.append((values, weight_average))
+
+    return feature_list
+
+
 class WeightModel(BaseEstimator, RegressorMixin):
     """
     Inherit from sklearn BaseEstimator to support sklearn workflow, e.g. GridSearchCV.
@@ -489,34 +519,18 @@ class WeightModel(BaseEstimator, RegressorMixin):
         # Partial feature list for each local estimator.
         # [feature_list for estimator1, ...2, ...]
         local_partial_list = []
+
+        job_list = []
         for local_index in range(self.N):
             local_estimator = self.local_estimator_list[local_index]
             weight = self.weight_matrix_[local_index][self.neighbour_matrix_[local_index]]
             X_local = self.X[self.neighbour_matrix_[local_index]]
 
-            # Partial result of each feature.
-            # [(x for feature1, y for feature1), (x for feature2, y for feature2), (...), ...]
-            feature_list = []
+            job_list.append(
+                delayed(local_partial_dependence)(local_estimator, X_local, weight, self.n_features_in_)
+            )
 
-            for feature_index in range(self.n_features_in_):
-                pdp = partial_dependence(
-                    local_estimator,
-                    X_local,
-                    [feature_index],
-                    kind='both'
-                )
-
-                values = pdp['values'][0]
-                individual = pdp['individual'][0]
-
-                # Must get individual partial dependence to weight the result
-                # Weight: Performance Weight. The point with more weight performance better in the model.
-                # So average the partial performance according to the weight.
-                weight_average = np.average(individual, axis=0, weights=weight)
-
-                feature_list.append((values, weight_average))
-
-            local_partial_list.append(feature_list)
+        local_partial_list = Parallel(n_jobs=-1)(job_list)
         self.local_partial_ = np.array(local_partial_list)
 
         # Convert local based result to feature based result.
