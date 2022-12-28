@@ -4,11 +4,12 @@ from matplotlib import pyplot as plt
 from georegression.visualize import folder
 
 
-def global_importance_plot(importance_matrix, labels=None, folder_=folder):
+def global_importance_plot(importance_matrix, labels=None, index=True, folder_=folder):
     """
     Args:
         importance_matrix (np.ndarray): Shape(Feature, n_repeats).
         labels (list):
+        index (): Whether add index before labels.
         folder_ ():
 
     """
@@ -17,6 +18,10 @@ def global_importance_plot(importance_matrix, labels=None, folder_=folder):
     if labels is None:
         labels = [f'Feature {i}' for i in range(importance_matrix.shape[0])]
     labels = np.array(labels)
+
+    # Add index for labels
+    if index:
+        labels = [f'{i}. {labels[i]}' for i in range(labels.shape[0])]
 
     # Sort by the mean of importance value
     importance_mean = np.mean(importance_matrix, axis=1)
@@ -53,3 +58,5 @@ def global_importance_plot(importance_matrix, labels=None, folder_=folder):
     fig.suptitle('Global Importance of Independent Features\n')
     fig.tight_layout()
     fig.savefig(folder_ / 'ImportancePlot.png')
+
+# TODO: Add interaction 2D hot-plot.

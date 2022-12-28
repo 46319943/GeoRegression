@@ -520,6 +520,7 @@ class WeightModel(BaseEstimator, RegressorMixin):
         # [feature_list for estimator1, ...2, ...]
         local_partial_list = []
 
+        # TODO: Batch optimize for partial_dependence. Native weighted partial dependence.
         job_list = []
         for local_index in range(self.N):
             local_estimator = self.local_estimator_list[local_index]

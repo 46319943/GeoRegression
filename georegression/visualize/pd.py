@@ -136,7 +136,7 @@ def partial_plot_2d(
 
 def partial_plot_3d(
         feature_partial, temporal_vector, cluster_vector=None,
-        sample_size=None, quantile=None, is_ICE=False, folder_=folder
+        sample_size=None, quantile=None, is_ICE=False, labels=None, folder_=folder
 ):
     feature_count = len(feature_partial)
 
@@ -211,7 +211,7 @@ def partial_plot_3d(
         fig = go.Figure(data=trace_list)
         fig.update_layout(
             title={
-                'text': f"Temporal Partial Dependency of Feature {feature_index + 1}",
+                'text': f"Temporal Partial Dependency of Feature {feature_index + 1} {labels[feature_index] if labels is not None else ''}",
                 'xanchor': 'center',
                 'x': 0.45,
                 'yanchor': 'top',
@@ -236,7 +236,7 @@ def partial_plot_3d(
         else:
             suffix = ''
 
-        fig.write_html(folder_ / f'Geo{"PDP" if not is_ICE else "ICE"}_{feature_index}{suffix}.html')
+        fig.write_html(folder_ / f'Geo{"PDP" if not is_ICE else "ICE"}_{feature_index + 1}{suffix}.html')
         fig_list.append(fig)
 
     return fig_list
@@ -347,23 +347,25 @@ def cluster_dendrogram_plot(distance_matrix, cluster_vector=None):
 
 def partial_cluster_plot(
         feature_distance, feature_cluster_label_list, distance_matrix, cluster_label,
-        geo_vector, temporal_vector, cluster_vector=None, folder_=folder
+        geo_vector, temporal_vector, cluster_vector=None, labels=None, folder_=folder
 ):
     feature_count = feature_distance.shape[0]
 
     # Single feature based cluster. Iterate each feature
     for feature_index in range(feature_count):
         cluster_dendrogram_plot(feature_distance[feature_index])
-        plt.title(f'Hierarchy Plot of Feature {feature_index}')
+        plt.title(
+            f'Hierarchy Plot of Feature {feature_index + 1} {labels[feature_index] if labels is not None else ""}')
         # TODO: Save to where?
-        plt.savefig(folder_ / f'Hierarchy_{feature_index}.png')
+        plt.savefig(folder_ / f'Hierarchy_{feature_index + 1}.png')
         plt.clf()
 
         # Plot the single feature cluster result
         scatter_3d(
             geo_vector, temporal_vector, feature_cluster_label_list[feature_index],
-            f'Spatio-temporal Cluster Plot of Feature {feature_index}', 'Cluster Label',
-            filename=f'Cluster_{feature_index}', is_cluster=True, folder_=folder_)
+            f'Spatio-temporal Cluster Plot of Feature {feature_index + 1} {labels[feature_index] if labels is not None else ""}',
+            'Cluster Label',
+            filename=f'Cluster_{feature_index + 1}', is_cluster=True, folder_=folder_)
 
     cluster_dendrogram_plot(distance_matrix)
     plt.title('Hierarchy Plot of Integrated Feature')
