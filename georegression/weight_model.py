@@ -402,38 +402,38 @@ class WeightModel(BaseEstimator, RegressorMixin):
         if not self.cache_data or not self.cache_estimator:
             raise Exception('Importance score of global needs cache_data and cache_estimator set True')
 
-        # Shape(Feature, n_repeats)
-        score_list = []
-        for feature_index in range(self.n_features_in_):
+        # Feed bulk/batch instead of atomic data to local_estimator to speed up 100x.
 
-            # Shape(n_repeats, )
-            feature_score_list = []
+        # Prediction after permuting. Shape(N, Feature, n_repeats)
+        permute_predict = np.empty((self.N, self.n_features_in_, n_repeats))
 
-            # TODO: Parallel or bulk/batch data to speed up.
-            for repeat in range(n_repeats):
-                # Permutation the feature
-                shuffling_idx = np.arange(self.N)
-                np.random.shuffle(shuffling_idx)
-                X_permuted = self.X.copy()
-                X_permuted[:, feature_index] = self.X[shuffling_idx, feature_index]
+        # Index of permutation along the N axis. Shape(N, Feature, n_repeats)
+        permute_index = np.tile(np.arange(self.N).reshape((-1, 1, 1)), (1, self.n_features_in_, n_repeats))
+        permute_index = np.apply_along_axis(np.random.permutation, 0, permute_index)
 
-                # Predict local using the permuted data
-                local_predict = [
-                    local_estimator.predict(x.reshape(1, -1))
-                    for local_estimator, x in
-                    zip(self.local_estimator_list, X_permuted)
-                ]
-                local_predict = np.array(local_predict).squeeze()
+        # Predict for each local estimator
+        for i in range(self.N):
+            local_estimator = self.local_estimator_list[i]
 
-                # Get score and append to the current feature score list
-                score = r2_score(self.y, local_predict)
-                feature_score_list.append(score)
+            # Input of the estimator. Shape(Feature, Feature, n_repeats)
+            x = self.X[i].reshape(-1, 1, 1)
+            x = np.tile(x, (1, self.n_features_in_, n_repeats))
 
-            # N-repeat scores of each feature
-            score_list.append(feature_score_list)
+            # Permute the x using permute_index. Iterate by feature.
+            for feature_index in range(self.n_features_in_):
+                x[feature_index, feature_index, :] = self.X[permute_index[i, feature_index, :], feature_index]
+
+            # Flatten and transpose the x for estimation input. Shape(Feature * n_repeats, Feature)
+            x = np.transpose(x.reshape(self.n_features_in_, -1))
+
+            # Predict and reshape back. Shape(Feature, n_repeats) corresponding to "Feature * n_repeats".
+            permute_predict[i, :, :] = local_estimator.predict(x).reshape(self.n_features_in_, n_repeats)
+
+        def inner_score(y_hat):
+            return r2_score(self.y, y_hat)
 
         # The lower score means higher importance.
-        score_decrease = self.llocv_score_ - np.array(score_list)
+        score_decrease = self.llocv_score_ - np.apply_along_axis(inner_score, 0, permute_predict)
 
         # More trail added.
         if self.permutation_score_decrease_ is not None:
@@ -454,7 +454,7 @@ class WeightModel(BaseEstimator, RegressorMixin):
         Args:
             n_repeats ():
 
-        Returns:
+        Returns: Interaction matrix averaged over n_repeats. Shape(Feature, Feature).
 
         """
         if not self.cache_data or not self.cache_estimator:
