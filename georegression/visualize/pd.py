@@ -58,6 +58,7 @@ def select_partial(feature_partial, sample_size=None, quantile=None):
         v_inner_average = np.vectorize(inner_average)
         feature_y_average = v_inner_average(feature_partial[:, :, 1])
         quantile_value = np.quantile(feature_y_average, quantile, axis=1, interpolation='nearest').transpose()
+        # TODO: Bug fix. When have the same value, multiple value will be seleted.
         selection_matrix = np.isin(feature_y_average, quantile_value)
         # To get indices, one can use where/nonzero or argwhere after isin.
 
@@ -138,12 +139,30 @@ def partial_plot_3d(
         feature_partial, temporal_vector, cluster_vector=None,
         sample_size=None, quantile=None, is_ICE=False, labels=None, folder_=folder
 ):
+    """
+
+    Args:
+        feature_partial ():
+        temporal_vector ():
+        cluster_vector (): Shape(N,) or Shape(Feature, N)
+        sample_size ():
+        quantile ():
+        is_ICE ():
+        labels ():
+        folder_ ():
+
+    Returns:
+
+    """
+
     feature_count = len(feature_partial)
 
     # Tile
     temporal_vector = np.tile(temporal_vector.reshape(1, -1), (feature_count, 1))
     if cluster_vector is not None:
-        cluster_vector = np.tile(cluster_vector.reshape(1, -1), (feature_count, 1))
+        # If Shape(N,). Else Shape(Feature, N).
+        if len(cluster_vector.shape) == 1:
+            cluster_vector = np.tile(cluster_vector.reshape(1, -1), (feature_count, 1))
 
     # Do selection
     if sample_size is not None or quantile is not None:
@@ -204,7 +223,8 @@ def partial_plot_3d(
                 hovertemplate=
                 '<b>X Value</b>: %{y} <br />' +
                 '<b>Time Slice</b>: %{x}  <br />' +
-                '<b>Partial Value</b>: %{z}  <br />',
+                '<b>Partial Value</b>: %{z}  <br />' +
+                f'<b>Index</b>: {local_index}  <br />',
             )
             trace_list.append(trace)
 
@@ -243,6 +263,15 @@ def partial_plot_3d(
 
 
 def partial_distance(feature_partial):
+    """
+
+    Args:
+        feature_partial (np.ndarray): Shape(Feature, N, 2)
+
+    Returns:
+
+    """
+
     feature_count = feature_partial.shape[0]
 
     # Shape(Feature, N, N)
@@ -258,15 +287,35 @@ def partial_distance(feature_partial):
             # Iterate each dest data point
             for x_dest, y_dest in feature_partial[feature_index]:
 
+                # Overlapped range of two lines. (Max of line start point, Min of line end point)
+                overlap_start = max(x_origin[0], x_dest[0])
+                overlap_end = min(x_origin[-1], x_dest[-1])
+
+                # No overlapped range.
+                if overlap_start >= overlap_end:
+                    pass
+
+                # Get the point in the overlapped range.
+                x_merge = np.append([x_origin, x_dest])
+                x_merge = x_merge[overlap_start <= x_merge <= overlap_end]
+
+                # Interpolate for the overlapped range.
+                y_merge_origin = np.interp(x_merge, x_origin, y_origin)
+                y_merge_dest = np.interp(x_merge, x_dest, y_dest)
+
                 # Get common x
                 common_x = np.intersect1d(x_origin, x_dest)
                 # Select pd value based on common x
                 origin_common_y = y_origin[np.isin(x_origin, common_x)]
                 dest_common_y = y_dest[np.isin(x_dest, common_x)]
 
+                # Minimal square distance of two line. Optimal at -b/2a. a is coef of x^2, and b is coef of x.
+                intercept = - np.sum(origin_common_y - dest_common_y) / len(common_x)
+                pointwise_distance = (origin_common_y - dest_common_y + intercept) ** 2
+
                 # Calculate distance
                 # TODO: Sum or Average the distance of each point?
-                pointwise_distance = np.abs(origin_common_y - dest_common_y)
+                # pointwise_distance = np.abs(origin_common_y - dest_common_y)
 
                 # Use average value distance when no common x
                 if pointwise_distance.shape[0] == 0:
@@ -288,6 +337,10 @@ def partial_cluster(feature_partial, n_clusters=4):
     Args:
         feature_partial (np.ndarray): Shape(Feature, N, 2)
         n_clusters ():
+
+    Returns:
+        feature_distance, feature_cluster_label, distance_matrix, cluster_label
+
     """
 
     feature_count = feature_partial.shape[0]

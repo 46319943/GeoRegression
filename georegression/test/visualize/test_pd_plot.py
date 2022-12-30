@@ -1,4 +1,5 @@
 from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
 
 from georegression.test.data import load_HP
 from georegression.visualize.pd import select_partial, partial_plot_3d, partial_cluster, partial_plot_2d, \
@@ -10,7 +11,8 @@ X, y, xy_vector, time = load_HP()
 
 def test_pd_plot():
     model = WeightModel(
-        LinearRegression(),
+        # LinearRegression(),
+        RandomForestRegressor(),
         distance_measure='euclidean',
         kernel_type='bisquare',
         neighbour_count=0.5,
@@ -23,8 +25,8 @@ def test_pd_plot():
 
     feature_distance, feature_cluster_label, distance_matrix, cluster_label = partial_cluster(model.feature_partial_)
     partial_plot_3d(
-        model.feature_partial_, model.coordinate_vector_list[1], cluster_vector=cluster_label,
-        quantile=[0, 0.2, 0.8, 1],
+        model.feature_partial_, model.coordinate_vector_list[1], cluster_vector=feature_cluster_label,
+        # quantile=[0, 0.2, 0.8, 1],
     )
     partial_plot_2d(model.feature_partial_, model.coordinate_vector_list[1], cluster_vector=cluster_label)
 
@@ -37,7 +39,8 @@ def test_pd_plot():
     feature_distance, feature_cluster_label, distance_matrix, cluster_label = partial_cluster(model.feature_ice_)
     partial_plot_3d(
         model.feature_ice_, model.coordinate_vector_list[1], cluster_vector=cluster_label,
-        quantile=[0, 0.2, 0.8, 1], is_ICE=True
+        # quantile=[0, 0.2, 0.8, 1],
+        is_ICE=True
     )
 
 
