@@ -293,29 +293,29 @@ def partial_distance(feature_partial):
 
                 # No overlapped range.
                 if overlap_start >= overlap_end:
-                    pass
-
-                # Get the point in both lines between the overlapped range.
-                x_merge = np.unique(np.concatenate([x_origin, x_dest]))
-                x_merge = x_merge[(overlap_start <= x_merge) & (x_merge <= overlap_end)]
-
-                # Linear interpolate for the overlapped range.
-                y_merge_origin = np.interp(x_merge, x_origin, y_origin)
-                y_merge_dest = np.interp(x_merge, x_dest, y_dest)
-
-                # Minimal square distance of two line. Optimal at -b/2a. a is coef of x^2, and b is coef of x.
-                intercept = - np.sum(y_merge_origin - y_merge_dest) / len(x_merge)
-                pointwise_distance = (y_merge_origin - y_merge_dest + intercept) ** 2
-
-                # Use average value distance when no common x
-                if pointwise_distance.shape[0] == 0:
-                    # TODO: Deal with no overlap situation
-                    distance = np.abs(np.average(y_origin) - np.average(y_dest))
+                    distance = np.inf
                 else:
+                    # Get the point in both lines between the overlapped range.
+                    x_merge = np.unique(np.concatenate([x_origin, x_dest]))
+                    x_merge = x_merge[(overlap_start <= x_merge) & (x_merge <= overlap_end)]
+
+                    # Linear interpolate for the overlapped range.
+                    y_merge_origin = np.interp(x_merge, x_origin, y_origin)
+                    y_merge_dest = np.interp(x_merge, x_dest, y_dest)
+
+                    # Minimal square distance of two line. Optimal at -b/2a. a is coef of x^2, and b is coef of x.
+                    intercept = - np.sum(y_merge_origin - y_merge_dest) / len(x_merge)
+                    pointwise_distance = (y_merge_origin - y_merge_dest + intercept) ** 2
                     distance = np.average(pointwise_distance)
 
                 line_distance_list.append(distance)
             line_distance_matrix.append(line_distance_list)
+
+        # Fill Infinity value by max distance.
+        line_distance_matrix = np.array(line_distance_matrix)
+        line_distance_matrix = np.nan_to_num(line_distance_matrix,
+                                             posinf=line_distance_matrix[np.isfinite(line_distance_matrix)].max() * 2)
+
         feature_distance.append(line_distance_matrix)
 
     return np.array(feature_distance)
