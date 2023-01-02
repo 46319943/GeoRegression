@@ -1,13 +1,17 @@
 import math
+import time
 from os.path import join
 from pathlib import Path
 
+import matplotlib
 import numpy as np
+from joblib import Parallel, delayed
 from matplotlib import cm, pyplot as plt
 from scipy.cluster.hierarchy import dendrogram
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.inspection import PartialDependenceDisplay
-
+from hdbscan import HDBSCAN
+from umap import UMAP
 import plotly.graph_objects as go
 
 from georegression.visualize.scatter import scatter_3d
@@ -58,7 +62,7 @@ def select_partial(feature_partial, sample_size=None, quantile=None):
         v_inner_average = np.vectorize(inner_average)
         feature_y_average = v_inner_average(feature_partial[:, :, 1])
         quantile_value = np.quantile(feature_y_average, quantile, axis=1, interpolation='nearest').transpose()
-        # TODO: Bug fix. When have the same value, multiple value will be seleted.
+        # TODO: Bug fix. When have the same value, multiple value will be selected.
         selection_matrix = np.isin(feature_y_average, quantile_value)
         # To get indices, one can use where/nonzero or argwhere after isin.
 
@@ -94,7 +98,7 @@ def partial_plot_2d(
     col_length = 3
     row_length = 3
     fig, axs = plt.subplots(
-        ncols=col, nrows=row, sharey=True,
+        ncols=col, nrows=row, sharey='all',
         figsize=(col * col_length, row * row_length)
     )
     axs = axs.flatten()
@@ -262,158 +266,203 @@ def partial_plot_3d(
     return fig_list
 
 
+def feature_partial_distance(partial):
+    """
+    Calculation distance between partial lines.
+
+    Args:
+        partial (np.ndarray): partial result of a feature. Shape(N, 2)
+
+    Returns:
+        distance_matrix (np.ndarray): Shape(N, N)
+    """
+
+    N = partial.shape[0]
+    line_distance_matrix = np.zeros((N, N))
+
+    # Iterate each origin data point
+    for origin_index, (x_origin, y_origin) in enumerate(partial):
+        line_distance_list = []
+
+        # Iterate each dest data point
+        for x_dest, y_dest in partial[origin_index:]:
+
+            # Overlapped range of two lines. (Max of line start point, Min of line end point)
+            overlap_start = max(x_origin[0], x_dest[0])
+            overlap_end = min(x_origin[-1], x_dest[-1])
+
+            # No overlapped range.
+            if overlap_start >= overlap_end:
+                distance = np.inf
+            else:
+                # Get the point in both lines between the overlapped range.
+                x_merge = np.unique(np.concatenate([x_origin, x_dest]))
+                x_merge = x_merge[(overlap_start <= x_merge) & (x_merge <= overlap_end)]
+
+                # Linear interpolate for the overlapped range.
+                y_merge_origin = np.interp(x_merge, x_origin, y_origin)
+                y_merge_dest = np.interp(x_merge, x_dest, y_dest)
+
+                # Minimal square distance of two line. Optimal at -b/2a. a is coef of x^2, and b is coef of x.
+                intercept = - np.sum(y_merge_origin - y_merge_dest) / len(x_merge)
+                pointwise_distance = (y_merge_origin - y_merge_dest + intercept) ** 2
+                distance = np.average(pointwise_distance)
+
+            line_distance_list.append(distance)
+        line_distance_matrix[origin_index, origin_index:] = line_distance_list
+
+    # Fill Infinity value by max distance.
+    line_distance_matrix = np.nan_to_num(line_distance_matrix,
+                                         posinf=line_distance_matrix[np.isfinite(line_distance_matrix)].max() * 2)
+
+    # Fill the up triangular matrix.
+    line_distance_matrix = line_distance_matrix + np.transpose(line_distance_matrix)
+
+    return line_distance_matrix
+
+
 def partial_distance(feature_partial):
     """
+    Calculation distance between partial lines.
 
     Args:
         feature_partial (np.ndarray): Shape(Feature, N, 2)
 
     Returns:
+        feature_distance (np.ndarray): Shape(Feature, N, N)
 
     """
 
     feature_count = feature_partial.shape[0]
 
     # Shape(Feature, N, N)
-    feature_distance = []
-    # Single feature based cluster. Iterate each feature
-    for feature_index in range(feature_count):
-        line_distance_matrix = []
-
-        # Iterate each origin data point
-        for x_origin, y_origin in feature_partial[feature_index]:
-            line_distance_list = []
-
-            # Iterate each dest data point
-            for x_dest, y_dest in feature_partial[feature_index]:
-
-                # Overlapped range of two lines. (Max of line start point, Min of line end point)
-                overlap_start = max(x_origin[0], x_dest[0])
-                overlap_end = min(x_origin[-1], x_dest[-1])
-
-                # No overlapped range.
-                if overlap_start >= overlap_end:
-                    distance = np.inf
-                else:
-                    # Get the point in both lines between the overlapped range.
-                    x_merge = np.unique(np.concatenate([x_origin, x_dest]))
-                    x_merge = x_merge[(overlap_start <= x_merge) & (x_merge <= overlap_end)]
-
-                    # Linear interpolate for the overlapped range.
-                    y_merge_origin = np.interp(x_merge, x_origin, y_origin)
-                    y_merge_dest = np.interp(x_merge, x_dest, y_dest)
-
-                    # Minimal square distance of two line. Optimal at -b/2a. a is coef of x^2, and b is coef of x.
-                    intercept = - np.sum(y_merge_origin - y_merge_dest) / len(x_merge)
-                    pointwise_distance = (y_merge_origin - y_merge_dest + intercept) ** 2
-                    distance = np.average(pointwise_distance)
-
-                line_distance_list.append(distance)
-            line_distance_matrix.append(line_distance_list)
-
-        # Fill Infinity value by max distance.
-        line_distance_matrix = np.array(line_distance_matrix)
-        line_distance_matrix = np.nan_to_num(line_distance_matrix,
-                                             posinf=line_distance_matrix[np.isfinite(line_distance_matrix)].max() * 2)
-
-        feature_distance.append(line_distance_matrix)
+    feature_distance = Parallel(n_jobs=-1)(
+        # Single feature based cluster. Iterate each feature
+        delayed(feature_partial_distance)(feature_partial[feature_index])
+        for feature_index in range(feature_count)
+    )
 
     return np.array(feature_distance)
 
 
-def partial_cluster(feature_partial, n_clusters=4):
+def partial_cluster(
+        geo_vector, temporal_vector,
+        feature_partial=None, feature_distance=None,
+        n_neighbours=5, min_dist=0.1, n_components=2,
+        min_cluster_size=10, min_samples=3, cluster_selection_epsilon=1,
+        select_clusters=False,
+        labels=None, folder_=folder,
+):
     """
     Cluster data point based on partial dependency
 
     Args:
+        geo_vector ():
+        temporal_vector ():
+        labels ():
+        feature_distance ():
+        folder_ ():
+        n_neighbours ():
+        min_dist ():
+        n_components ():
+        min_cluster_size ():
+        min_samples ():
+        cluster_selection_epsilon ():
         feature_partial (np.ndarray): Shape(Feature, N, 2)
-        n_clusters ():
+        select_clusters ():
 
     Returns:
         feature_distance, feature_cluster_label, distance_matrix, cluster_label
 
     """
 
-    feature_count = feature_partial.shape[0]
+    if feature_partial is None and feature_distance is None:
+        raise Exception('Feature partial or feature distance should be provided.')
 
-    feature_distance = partial_distance(feature_partial)
+    if feature_distance is None:
+        feature_distance = partial_distance(feature_partial)
+
+    feature_count = feature_distance.shape[0]
 
     # Shape(Feature, N)
     feature_cluster_label = []
     for feature_index in range(feature_count):
-        # Fit cluster model again for N cluster label (Or distance threshold)
-        # TODO: No affinity set as precomputed in the order version.
-        model = AgglomerativeClustering(n_clusters=n_clusters, affinity='precomputed', linkage='complete')
-        model.fit(feature_distance[feature_index])
+        # TODO: Range of UMAP embedding value?
+        # Dimension reduction. Standard for visualization. Clusterable for clustering.
+        standard_embedding = UMAP(
+            random_state=42, n_neighbors=n_neighbours, min_dist=min_dist, metric='precomputed'
+        ).fit_transform(feature_distance[feature_index])
+        if n_components == 2:
+            clusterable_embedding = standard_embedding
+        else:
+            clusterable_embedding = UMAP(
+                random_state=42, n_neighbors=n_neighbours, min_dist=min_dist, n_components=n_components,
+                metric='precomputed'
+            ).fit_transform(feature_distance[feature_index])
+
+        model = HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples,
+                        cluster_selection_epsilon=cluster_selection_epsilon
+                        ).fit(clusterable_embedding)
 
         # Record feature label result
         feature_cluster_label.append(model.labels_)
-    feature_cluster_label = np.array(feature_cluster_label)
 
-    # Multi-feature based cluster. Shape(N, Feature)
-    X = feature_cluster_label.T
-
-    # Calculate the distance based on features clustering result. Shape(N, N)
-    distance_matrix = []
-    for origin in X:
-        distance_list = []
-        for dest in X:
-            dis = np.count_nonzero(origin != dest)
-            distance_list.append(dis)
-        distance_matrix.append(distance_list)
-
-    model = AgglomerativeClustering(n_clusters=n_clusters, affinity='precomputed', linkage='complete')
-    model.fit(distance_matrix)
-    cluster_label = model.labels_
-
-    return feature_distance, feature_cluster_label, distance_matrix, cluster_label
-
-
-def cluster_dendrogram_plot(distance_matrix, cluster_vector=None):
-    # Fit cluster model for hierarchy plot
-    model = AgglomerativeClustering(distance_threshold=0, n_clusters=None, affinity='precomputed', linkage='complete')
-    model.fit(distance_matrix)
-
-    # Plot the hierarchy figure
-    plt.figure(figsize=(8, 6))
-    # TODO: Parameter decision
-    linkage_matrix = plot_dendrogram(model, truncate_mode="level", p=3)
-
-    # TODO: Fix label overflow.
-    # plt.tight_layout()
-
-    # Save and clear the plot context
-    plt.ylabel('Variance of the clusters')
-    plt.xlabel("Number of points in node (or index of point if no parenthesis)")
-
-    return plt
-
-
-def partial_cluster_plot(
-        feature_distance, feature_cluster_label_list, distance_matrix, cluster_label,
-        geo_vector, temporal_vector, cluster_vector=None, labels=None, folder_=folder
-):
-    feature_count = feature_distance.shape[0]
-
-    # Single feature based cluster. Iterate each feature
-    for feature_index in range(feature_count):
-        cluster_dendrogram_plot(feature_distance[feature_index])
+        # Plot UMAP embedding
+        sc = plt.scatter(standard_embedding[:, 0], standard_embedding[:, 1], s=5, c=model.labels_, cmap='Spectral')
+        plt.legend(*sc.legend_elements(), title='clusters')
+        plt.ylabel('Embedding dimension X')
+        plt.xlabel("Embedding dimension Y")
         plt.title(
-            f'Hierarchy Plot of Feature {feature_index + 1} {labels[feature_index] if labels is not None else ""}')
-        # TODO: Save to where?
-        plt.savefig(folder_ / f'Hierarchy_{feature_index + 1}.png')
+            f'Low dimension embedding of Feature {feature_index + 1} {labels[feature_index] if labels is not None else ""}'
+        )
+        plt.savefig(folder_ / f'UMAP_{feature_index + 1}.png')
+        plt.clf()
+
+        # Plot cluster tree
+        model.condensed_tree_.plot(select_clusters=select_clusters)
+        plt.title(
+            f'Condensed trees of Feature {feature_index + 1} {labels[feature_index] if labels is not None else ""}'
+        )
+        plt.savefig(folder_ / f'CondensedTrees_{feature_index + 1}.png')
         plt.clf()
 
         # Plot the single feature cluster result
         scatter_3d(
-            geo_vector, temporal_vector, feature_cluster_label_list[feature_index],
+            geo_vector, temporal_vector, model.labels_,
             f'Spatio-temporal Cluster Plot of Feature {feature_index + 1} {labels[feature_index] if labels is not None else ""}',
             'Cluster Label',
             filename=f'Cluster_{feature_index + 1}', is_cluster=True, folder_=folder_)
 
-    cluster_dendrogram_plot(distance_matrix)
-    plt.title('Hierarchy Plot of Integrated Feature')
-    plt.savefig(folder_ / f'Hierarchy_Integrated.png')
+    feature_cluster_label = np.array(feature_cluster_label)
+
+    # Distance based on feature distance.
+    distance_matrix = np.sum(feature_distance, axis=0)
+
+    standard_embedding = UMAP(
+        random_state=42, n_neighbors=n_neighbours * 2, min_dist=min_dist * 2, metric='precomputed'
+    ).fit_transform(distance_matrix)
+
+    model = HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples,
+                    cluster_selection_epsilon=cluster_selection_epsilon
+                    ).fit(standard_embedding)
+
+    cluster_label = model.labels_
+
+    sc = plt.scatter(standard_embedding[:, 0], standard_embedding[:, 1], s=5, c=model.labels_, cmap='Spectral')
+    plt.legend(*sc.legend_elements(), title='clusters')
+    plt.ylabel('Embedding dimension X')
+    plt.xlabel("Embedding dimension Y")
+    plt.title(
+        f'Low dimension embedding of total features'
+    )
+    plt.savefig(folder_ / f'UMAP_Integrated.png')
+    plt.clf()
+
+    model.condensed_tree_.plot(select_clusters=select_clusters)
+    plt.title(
+        f'Condensed trees of total features'
+    )
+    plt.savefig(folder_ / f'CondensedTrees_Integrated.png')
     plt.clf()
 
     scatter_3d(
@@ -421,61 +470,4 @@ def partial_cluster_plot(
         f'Integrated Spatio-temporal Cluster Plot', 'Cluster Label',
         filename=f'Cluster_Integrated', is_cluster=True, folder_=folder_)
 
-
-def show_plain_partial(X, local_estimator_list):
-    """
-    PDP without considering local weight effect
-    """
-
-    local_count = X.shape[0]
-    feature_count = X.shape[1]
-
-    ax = None
-    display = None
-    for local_estimator in local_estimator_list:
-        display = PartialDependenceDisplay.from_estimator(
-            local_estimator,
-            X,
-            range(feature_count),
-            kind="average",
-            n_jobs=-1,
-            grid_resolution=20,
-            random_state=0,
-            ice_lines_kw={"color": "tab:blue", "alpha": 0.2, "linewidth": 0.5},
-            pd_line_kw={"color": "tab:orange", "linestyle": "--"},
-            ax=ax
-        )
-        ax = display.axes_
-
-    figure = display.figure_
-    figure.set_figwidth(10)
-    figure.set_figheight(30)
-    figure.tight_layout()
-    figure.suptitle("Partial dependence without local weight")
-    figure.subplots_adjust(hspace=0.3)
-    plt.savefig(folder / 'PDP.png')
-
-
-def plot_dendrogram(model, **kwargs):
-    # Create linkage matrix and then plot the dendrogram
-
-    # create the counts of samples under each node
-    counts = np.zeros(model.children_.shape[0])
-    n_samples = len(model.labels_)
-    for i, merge in enumerate(model.children_):
-        current_count = 0
-        for child_idx in merge:
-            if child_idx < n_samples:
-                current_count += 1  # leaf node
-            else:
-                current_count += counts[child_idx - n_samples]
-        counts[i] = current_count
-
-    linkage_matrix = np.column_stack(
-        [model.children_, model.distances_, counts]
-    ).astype(float)
-
-    # Plot the corresponding dendrogram
-    dendrogram(linkage_matrix, **kwargs)
-
-    return linkage_matrix
+    return feature_distance, feature_cluster_label, distance_matrix, cluster_label

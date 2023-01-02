@@ -532,7 +532,7 @@ class WeightModel(BaseEstimator, RegressorMixin):
             )
 
         local_partial_list = Parallel(n_jobs=-1)(job_list)
-        self.local_partial_ = np.array(local_partial_list)
+        self.local_partial_ = np.array(local_partial_list, dtype=object)
 
         # Convert local based result to feature based result.
         '''
@@ -567,7 +567,7 @@ class WeightModel(BaseEstimator, RegressorMixin):
 
             local_ice_list.append(feature_list)
 
-        self.local_ice_ = np.array(local_ice_list)
+        self.local_ice_ = np.array(local_ice_list, dtype=object)
         self.feature_ice_ = self.local_ice_.transpose((1, 0, 2))
 
         return self.local_ice_
