@@ -27,9 +27,8 @@ def test_scatter():
     # Cluster case
     model.fit(X[:100, :10], y[:100], [xy_vector[:100], time[:100]])
     model.partial_dependence()
-    feature_distance, feature_cluster_label, distance_matrix, cluster_label = partial_cluster(geo_vector,
-                                                                                              temporal_vector,
-                                                                                              model.feature_partial_)
+    feature_distance, feature_cluster_label, distance_matrix, cluster_label = partial_cluster(
+        xy_vector[:100], time[:100], model.feature_partial_)
 
     scatter_3d(
         xy_vector[:100], time[:100], cluster_label[:100],

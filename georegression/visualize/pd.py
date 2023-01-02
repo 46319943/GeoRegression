@@ -7,12 +7,14 @@ import matplotlib
 import numpy as np
 from joblib import Parallel, delayed
 from matplotlib import cm, pyplot as plt
+from plotly.subplots import make_subplots
 from scipy.cluster.hierarchy import dendrogram
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.inspection import PartialDependenceDisplay
 from hdbscan import HDBSCAN
 from umap import UMAP
 import plotly.graph_objects as go
+import plotly.express as px
 
 from georegression.visualize.scatter import scatter_3d
 from georegression.visualize.utils import vector_to_color
@@ -242,15 +244,15 @@ def partial_plot_3d(
                 'y': 0.99,
             },
             margin=dict(l=0, r=0, t=50, b=0, pad=0),
-            scene=dict(
-                xaxis_title='Time Slice',
-                yaxis_title='Independent / X value',
-                zaxis_title='Dependent / Partial Value',
-            ),
             legend_title="Cluster Legend",
             font=dict(
                 size=12,
             )
+        )
+        fig.update_scenes(
+            xaxis_title='Time Slice',
+            yaxis_title='Independent / X value',
+            zaxis_title='Dependent / Partial Value',
         )
 
         if sample_size is not None:
@@ -359,7 +361,7 @@ def partial_cluster(
     Args:
         geo_vector ():
         temporal_vector ():
-        labels ():
+        labels (): Feature labels.
         feature_distance ():
         folder_ ():
         n_neighbours ():
@@ -427,11 +429,19 @@ def partial_cluster(
         plt.clf()
 
         # Plot the single feature cluster result
-        scatter_3d(
+        cluster_plot = scatter_3d(
             geo_vector, temporal_vector, model.labels_,
             f'Spatio-temporal Cluster Plot of Feature {feature_index + 1} {labels[feature_index] if labels is not None else ""}',
             'Cluster Label',
             filename=f'Cluster_{feature_index + 1}', is_cluster=True, folder_=folder_)
+
+        partial_compound_plot(
+            cluster_plot,
+            feature_partial[feature_index], temporal_vector,
+            standard_embedding,
+            labels[feature_index] if labels is not None else None, model.labels_,
+            feature_index
+        )
 
     feature_cluster_label = np.array(feature_cluster_label)
 
@@ -471,3 +481,73 @@ def partial_cluster(
         filename=f'Cluster_Integrated', is_cluster=True, folder_=folder_)
 
     return feature_distance, feature_cluster_label, distance_matrix, cluster_label
+
+
+def partial_compound_plot(
+        cluster_plot,
+        partial, temporal_vector,
+        embedding,
+        labels, cluster,
+        feature_index=None, folder_=folder,
+):
+    """
+    Subplots of 2 rows and 2 columns.
+    [cluster plot, partial plot  ]
+    [cluster plot, embedding plot]
+
+    Returns:
+
+    """
+
+    fig = make_subplots(
+        cols=2, rows=2,
+        column_widths=[0.5, 0.5], row_heights=[0.6, 0.4],
+        horizontal_spacing=0.02, vertical_spacing=0.05,
+        specs=[
+            [{'rowspan': 2, "type": "scene"}, {"type": "scene"}],
+            [None, {"type": "xy"}]
+        ],
+        subplot_titles=("First Subplot", "Second Subplot", "Third Subplot")
+    )
+
+    fig.add_traces(cluster_plot.data, rows=1, cols=1)
+
+    partial_plot = partial_plot_3d(
+        np.array([partial]), temporal_vector, cluster_vector=cluster, sample_size=0.2,
+        labels=labels, folder_=folder
+    )
+    fig.add_traces(partial_plot[0].data, rows=1, cols=2)
+
+    # TODO: Optimize customer data and add index for scatter3d.
+    local_index = np.arange(embedding.shape[0]).reshape(-1, 1)
+    customer_data = np.concatenate([temporal_vector, local_index], axis=1)
+    color = vector_to_color(cluster)
+    for cluster_value in np.unique(cluster):
+        cluster_index = cluster == cluster_value
+        fig.add_trace(
+            go.Scattergl(
+                x=embedding[cluster_index, 0], y=embedding[cluster_index, 1],
+                customdata=customer_data[cluster_index], mode='markers',
+                # Name of trace for legend display
+                name=f'Cluster {cluster_value}',
+                legendgroup=f'Cluster {cluster_value}',
+                marker={
+                    'color': color[cluster_index],
+                    'size': 5,
+                },
+                text=cluster[cluster_index],
+                hovertemplate=
+                '<b>Time Slice</b> :' + ' %{customdata[0]} <br />' +
+                f'<b>Cluster</b> :' + ' %{text} <br />' +
+                f'<b>Index</b> :' + ' %{customdata[1]} <br />' +
+                '<extra></extra>',
+            ), row=2, col=2
+        )
+
+    fig.update_layout(cluster_plot.layout)
+    fig.update_scenes(cluster_plot.layout.scene, row=1, col=1)
+    fig.update_scenes(partial_plot[0].layout.scene, row=1, col=2)
+
+    fig.write_html(folder_ / f'PartialCompound_{feature_index}.html')
+
+    return fig

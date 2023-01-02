@@ -49,6 +49,7 @@ def scatter_3d(
                     x=x[cluster_index], y=y[cluster_index], z=z[cluster_index], mode='markers',
                     # Name of trace for legend display
                     name=f'Cluster {cluster_value}',
+                    legendgroup=f'Cluster {cluster_value}',
                     marker={
                         'color': color[cluster_index],
                         'size': 5,
@@ -141,50 +142,50 @@ def scatter_3d(
 
         # Legend
         legend_title="Point and Surface Legend",
-
-        # Set axis ratio
-        scene_aspectmode='manual',
-        scene_aspectratio=dict(x=x_aspect, y=y_aspect, z=z_aspect),
-
-        # Axis label
-        scene=dict(
-            xaxis=dict(
-                title='X Position',
-                ticktext=['X Negative', 'X Positive'],
-                tickvals=[x_min, x_max],
-                range=[x_min - x_interval * 0.12, x_max + x_interval * 0.12],
-                backgroundcolor="rgb(200, 200, 230)",
-                gridcolor="white",
-                showbackground=True,
-                zerolinecolor="white",
-                showspikes=False
-            ),
-            yaxis=dict(
-                title='Y Position',
-                ticktext=['Y Negative', 'Y Positive'],
-                tickvals=[y_min, y_max],
-                range=[y_min - y_interval * 0.12, y_max + y_interval * 0.12],
-                backgroundcolor="rgb(230, 200,230)",
-                gridcolor="white",
-                showbackground=True,
-                zerolinecolor="white",
-                showspikes=False
-            ),
-            zaxis=dict(
-                title='Temporal Slice Index',
-                tickvals=z_unique,
-                range=[z_min - z_interval * 0.1, z_max + z_interval * 0.1],
-                backgroundcolor="rgb(230, 230,200)",
-                gridcolor="white",
-                showbackground=True,
-                zerolinecolor="white",
-                # showspikes=False
-            ),
-        ),
     )
 
-    # Change Projection to Orthogonal
-    fig.layout.scene.camera.projection.type = "orthographic"
+    fig.update_scenes(
+        # Change Projection to Orthogonal
+        camera_projection_type="orthographic",
+
+        # Set axis ratio
+        aspectmode='manual',
+        aspectratio=dict(x=x_aspect, y=y_aspect, z=z_aspect),
+
+        # Axis label
+        xaxis=dict(
+            title='X Position',
+            ticktext=['X Negative', 'X Positive'],
+            tickvals=[x_min, x_max],
+            range=[x_min - x_interval * 0.12, x_max + x_interval * 0.12],
+            backgroundcolor="rgb(200, 200, 230)",
+            gridcolor="white",
+            showbackground=True,
+            zerolinecolor="white",
+            showspikes=False
+        ),
+        yaxis=dict(
+            title='Y Position',
+            ticktext=['Y Negative', 'Y Positive'],
+            tickvals=[y_min, y_max],
+            range=[y_min - y_interval * 0.12, y_max + y_interval * 0.12],
+            backgroundcolor="rgb(230, 200,230)",
+            gridcolor="white",
+            showbackground=True,
+            zerolinecolor="white",
+            showspikes=False
+        ),
+        zaxis=dict(
+            title='Temporal Slice Index',
+            tickvals=z_unique,
+            range=[z_min - z_interval * 0.1, z_max + z_interval * 0.1],
+            backgroundcolor="rgb(230, 230,200)",
+            gridcolor="white",
+            showbackground=True,
+            zerolinecolor="white",
+            # showspikes=False
+        ),
+    )
 
     # Output to disk file
     if filename is None:
