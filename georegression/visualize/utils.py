@@ -13,8 +13,8 @@ def color_to_str(color_vector):
 
 
 def vector_to_color(vector, stringify=True, colormap=None):
-    norm = colors.Normalize()
-    color = cm.get_cmap(colormap)(norm(vector))
+    vector_normed = (vector - np.min(vector, axis=-1, keepdims=True)) / (np.max(vector, axis=-1, keepdims=True) - np.min(vector, axis=-1, keepdims=True))
+    color = cm.get_cmap(colormap)(vector_normed)
     if not stringify:
         return color
     return color_to_str(color)

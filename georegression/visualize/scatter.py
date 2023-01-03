@@ -33,6 +33,9 @@ def scatter_3d(
     value_max = np.max(value)
     value_interval = value_max - value_min
 
+    # Index for each point
+    custom_data = np.arange(count)
+
     # Multiple legend for cluster input.
     if is_cluster:
         # Quick way using express.
@@ -55,8 +58,10 @@ def scatter_3d(
                         'size': 5,
                     },
                     text=value[cluster_index],
+                    customdata=custom_data,
                     hovertemplate=
-                    '<b>Time Slice</b> :' + ' %{z} <br />' +
+                    f'<b>Time Slice</b> :' + ' %{z} <br />' +
+                    f'<b>Index</b> :' + ' %{customdata} <br />' +
                     f'<b>{value_name}</b> :' + ' %{text} <br />' +
                     '<extra></extra>',
                 )
@@ -83,8 +88,10 @@ def scatter_3d(
                     },
                 },
                 text=value,
+                customdata=custom_data,
                 hovertemplate=
                 '<b>Time Slice</b> :' + ' %{z} <br />' +
+                f'<b>Index</b> :' + ' %{customdata} <br />' +
                 f'<b>{value_name}</b> :' + ' %{text:.3~f} <br />' +
                 '<extra></extra>'
             ),

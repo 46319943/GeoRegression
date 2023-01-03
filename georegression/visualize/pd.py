@@ -165,9 +165,13 @@ def partial_plot_3d(
 
     # Tile
     temporal_vector = np.tile(temporal_vector.reshape(1, -1), (feature_count, 1))
+
+    # Feature cluster or Integrated cluster.
+    is_integrated = False
     if cluster_vector is not None:
         # If Shape(N,). Else Shape(Feature, N).
         if len(cluster_vector.shape) == 1:
+            is_integrated = True
             cluster_vector = np.tile(cluster_vector.reshape(1, -1), (feature_count, 1))
 
     # Do selection
@@ -229,8 +233,9 @@ def partial_plot_3d(
                 hovertemplate=
                 '<b>X Value</b>: %{y} <br />' +
                 '<b>Time Slice</b>: %{x}  <br />' +
-                '<b>Partial Value</b>: %{z}  <br />' +
-                f'<b>Index</b>: {local_index}  <br />',
+                f'<b>Index</b>: {local_index}  <br />' +
+                '<b>Partial Value</b>: %{z}  <br />'
+
             )
             trace_list.append(trace)
 
@@ -262,7 +267,8 @@ def partial_plot_3d(
         else:
             suffix = ''
 
-        fig.write_html(folder_ / f'Geo{"PDP" if not is_ICE else "ICE"}_{feature_index + 1}{suffix}.html')
+        fig.write_html(
+            folder_ / f'Geo{"PDP" if not is_ICE else "ICE"}{"_Integrated" if is_integrated else ""}_{feature_index + 1}{suffix}.html')
         fig_list.append(fig)
 
     return fig_list
@@ -386,6 +392,8 @@ def partial_cluster(
 
     feature_count = feature_distance.shape[0]
 
+    # Shape(Feature, N, 2)
+    feature_embedding = []
     # Shape(Feature, N)
     feature_cluster_label = []
     for feature_index in range(feature_count):
@@ -408,17 +416,7 @@ def partial_cluster(
 
         # Record feature label result
         feature_cluster_label.append(model.labels_)
-
-        # Plot UMAP embedding
-        sc = plt.scatter(standard_embedding[:, 0], standard_embedding[:, 1], s=5, c=model.labels_, cmap='Spectral')
-        plt.legend(*sc.legend_elements(), title='clusters')
-        plt.ylabel('Embedding dimension X')
-        plt.xlabel("Embedding dimension Y")
-        plt.title(
-            f'Low dimension embedding of Feature {feature_index + 1} {labels[feature_index] if labels is not None else ""}'
-        )
-        plt.savefig(folder_ / f'UMAP_{feature_index + 1}.png')
-        plt.clf()
+        feature_embedding.append(standard_embedding)
 
         # Plot cluster tree
         model.condensed_tree_.plot(select_clusters=select_clusters)
@@ -428,22 +426,8 @@ def partial_cluster(
         plt.savefig(folder_ / f'CondensedTrees_{feature_index + 1}.png')
         plt.clf()
 
-        # Plot the single feature cluster result
-        cluster_plot = scatter_3d(
-            geo_vector, temporal_vector, model.labels_,
-            f'Spatio-temporal Cluster Plot of Feature {feature_index + 1} {labels[feature_index] if labels is not None else ""}',
-            'Cluster Label',
-            filename=f'Cluster_{feature_index + 1}', is_cluster=True, folder_=folder_)
-
-        partial_compound_plot(
-            cluster_plot,
-            feature_partial[feature_index], temporal_vector,
-            standard_embedding,
-            labels[feature_index] if labels is not None else None, model.labels_,
-            feature_index
-        )
-
     feature_cluster_label = np.array(feature_cluster_label)
+    feature_embedding = np.array(feature_embedding)
 
     # Distance based on feature distance.
     distance_matrix = np.sum(feature_distance, axis=0)
@@ -457,16 +441,7 @@ def partial_cluster(
                     ).fit(standard_embedding)
 
     cluster_label = model.labels_
-
-    sc = plt.scatter(standard_embedding[:, 0], standard_embedding[:, 1], s=5, c=model.labels_, cmap='Spectral')
-    plt.legend(*sc.legend_elements(), title='clusters')
-    plt.ylabel('Embedding dimension X')
-    plt.xlabel("Embedding dimension Y")
-    plt.title(
-        f'Low dimension embedding of total features'
-    )
-    plt.savefig(folder_ / f'UMAP_Integrated.png')
-    plt.clf()
+    cluster_embedding = standard_embedding
 
     model.condensed_tree_.plot(select_clusters=select_clusters)
     plt.title(
@@ -475,59 +450,40 @@ def partial_cluster(
     plt.savefig(folder_ / f'CondensedTrees_Integrated.png')
     plt.clf()
 
-    scatter_3d(
-        geo_vector, temporal_vector, cluster_label,
-        f'Integrated Spatio-temporal Cluster Plot', 'Cluster Label',
-        filename=f'Cluster_Integrated', is_cluster=True, folder_=folder_)
-
-    return feature_distance, feature_cluster_label, distance_matrix, cluster_label
+    return feature_embedding, feature_cluster_label, cluster_embedding, cluster_label
 
 
-def partial_compound_plot(
-        cluster_plot,
-        partial, temporal_vector,
-        embedding,
-        labels, cluster,
-        feature_index=None, folder_=folder,
+def embedding_plot(
+        embedding, cluster, temporal_vector,
+        title, filename, folder_=folder
 ):
     """
-    Subplots of 2 rows and 2 columns.
-    [cluster plot, partial plot  ]
-    [cluster plot, embedding plot]
+    2D Embedding plot colored by cluster.
+
+    Args:
+        embedding (np.ndarray): Shape(N, 2)
+        cluster (): Shape(N,)
+        temporal_vector (): Shape(N,)
+        title ():
+        filename ():
+        folder_ ():
 
     Returns:
 
     """
+    fig = go.Figure()
 
-    fig = make_subplots(
-        cols=2, rows=2,
-        column_widths=[0.5, 0.5], row_heights=[0.6, 0.4],
-        horizontal_spacing=0.02, vertical_spacing=0.05,
-        specs=[
-            [{'rowspan': 2, "type": "scene"}, {"type": "scene"}],
-            [None, {"type": "xy"}]
-        ],
-        subplot_titles=("First Subplot", "Second Subplot", "Third Subplot")
-    )
-
-    fig.add_traces(cluster_plot.data, rows=1, cols=1)
-
-    partial_plot = partial_plot_3d(
-        np.array([partial]), temporal_vector, cluster_vector=cluster, sample_size=0.2,
-        labels=labels, folder_=folder
-    )
-    fig.add_traces(partial_plot[0].data, rows=1, cols=2)
-
-    # TODO: Optimize customer data and add index for scatter3d.
     local_index = np.arange(embedding.shape[0]).reshape(-1, 1)
-    customer_data = np.concatenate([temporal_vector, local_index], axis=1)
+    custom_data = np.concatenate([temporal_vector, local_index], axis=1)
+
     color = vector_to_color(cluster)
+
     for cluster_value in np.unique(cluster):
         cluster_index = cluster == cluster_value
         fig.add_trace(
             go.Scattergl(
                 x=embedding[cluster_index, 0], y=embedding[cluster_index, 1],
-                customdata=customer_data[cluster_index], mode='markers',
+                customdata=custom_data[cluster_index], mode='markers',
                 # Name of trace for legend display
                 name=f'Cluster {cluster_value}',
                 legendgroup=f'Cluster {cluster_value}',
@@ -537,17 +493,146 @@ def partial_compound_plot(
                 },
                 text=cluster[cluster_index],
                 hovertemplate=
-                '<b>Time Slice</b> :' + ' %{customdata[0]} <br />' +
                 f'<b>Cluster</b> :' + ' %{text} <br />' +
+                f'<b>Time Slice</b> :' + ' %{customdata[0]} <br />' +
                 f'<b>Index</b> :' + ' %{customdata[1]} <br />' +
                 '<extra></extra>',
-            ), row=2, col=2
+            )
         )
 
-    fig.update_layout(cluster_plot.layout)
-    fig.update_scenes(cluster_plot.layout.scene, row=1, col=1)
-    fig.update_scenes(partial_plot[0].layout.scene, row=1, col=2)
+    fig.update_layout(
+        title=title,
+        legend_title="clusters",
+    )
 
-    fig.write_html(folder_ / f'PartialCompound_{feature_index}.html')
+    fig.update_xaxes(title="Embedding dimension X")
+    fig.update_yaxes(title="Embedding dimension Y")
+
+    fig.write_html(folder_ / f'{filename}.html')
 
     return fig
+
+
+def partial_compound_plot(
+        geo_vector, temporal_vector, feature_partial,
+        feature_embedding, feature_cluster_label,
+        cluster_embedding, cluster_label,
+        labels=None, folder_=folder,
+):
+    """
+    Subplots of 2 rows and 2 columns.
+    [cluster plot, partial plot  ]
+    [cluster plot, embedding plot]
+
+    One compound plot for each feature cluster result. Another compound plot for whole feature cluster result.
+
+    Args:
+        geo_vector ():
+        temporal_vector ():
+        feature_partial (): Shape(Feature, N, 2)
+        feature_embedding (): Shape(Feature, N, 2)
+        feature_cluster_label (): Shape(Feature, N)
+        cluster_embedding (): Shape(N, 2)
+        cluster_label (): Shape(N,)
+        labels (): Shape(Feature)
+        folder_ ():
+
+
+    Returns:
+
+    """
+
+    # TODO: Add hover highlight.
+
+    feature_count = len(feature_partial)
+
+    # Each feature clusters.
+    partial_plot_list = partial_plot_3d(
+        feature_partial, temporal_vector, feature_cluster_label,
+        sample_size=0.2, labels=labels, folder_=folder
+    )
+
+    # Whole features cluster.
+    partial_plot_integrated_list = partial_plot_3d(
+        feature_partial, temporal_vector, cluster_label,
+        sample_size=0.2, labels=labels, folder_=folder
+    )
+    embedding_integrated_plot = embedding_plot(
+        cluster_embedding, cluster_label, temporal_vector,
+        f'Low dimension embedding of total features',
+        f'UMAP_Integrated', folder_=folder_
+    )
+    cluster_integrated_plot = scatter_3d(
+        geo_vector, temporal_vector, cluster_label,
+        f'Integrated Spatio-temporal Cluster Plot', 'Cluster Label',
+        filename=f'Cluster_Integrated', is_cluster=True, folder_=folder_)
+
+    for feature_index in range(feature_count):
+        embedding_fig = embedding_plot(
+            feature_embedding[feature_index], feature_cluster_label[feature_index], temporal_vector,
+            f'Low dimension embedding of Feature {feature_index + 1} {labels[feature_index] if labels is not None else ""}',
+            f'UMAP_{feature_index + 1}', folder_=folder_
+        )
+
+        # Plot the single feature cluster result
+        cluster_plot = scatter_3d(
+            geo_vector, temporal_vector, feature_cluster_label[feature_index],
+            f'Spatio-temporal Cluster Plot of Feature {feature_index + 1} {labels[feature_index] if labels is not None else ""}',
+            'Cluster Label',
+            filename=f'Cluster_{feature_index + 1}', is_cluster=True, folder_=folder_)
+
+        fig = make_subplots(
+            cols=2, rows=2,
+            column_widths=[0.5, 0.5], row_heights=[0.6, 0.4],
+            horizontal_spacing=0.02, vertical_spacing=0.05,
+            specs=[
+                [{'rowspan': 2, "type": "scene"}, {"type": "scene"}],
+                [None, {"type": "xy"}]
+            ],
+            subplot_titles=(
+                cluster_plot.layout.title.text,
+                partial_plot_list[feature_index].layout.title.text,
+                embedding_fig.layout.title.text)
+        )
+
+        fig.add_traces(cluster_plot.data, rows=1, cols=1)
+        fig.add_traces(partial_plot_list[feature_index].data, rows=1, cols=2)
+        fig.add_traces(embedding_fig.data, rows=2, cols=2)
+
+        fig.update_layout(cluster_plot.layout)
+        fig.update_scenes(cluster_plot.layout.scene, row=1, col=1)
+        fig.update_scenes(partial_plot_list[feature_index].layout.scene, row=1, col=2)
+        fig.update_xaxes(title="Embedding dimension X", row=2, col=2)
+        fig.update_yaxes(title="Embedding dimension Y", row=2, col=2)
+        fig.update_layout(title_text='Partial Compound Plot')
+
+        fig.write_html(folder_ / f'PartialCompound_{feature_index + 1}.html')
+
+        fig_integrated = make_subplots(
+            cols=2, rows=2,
+            column_widths=[0.5, 0.5], row_heights=[0.6, 0.4],
+            horizontal_spacing=0.02, vertical_spacing=0.05,
+            specs=[
+                [{'rowspan': 2, "type": "scene"}, {"type": "scene"}],
+                [None, {"type": "xy"}]
+            ],
+            subplot_titles=(
+                cluster_integrated_plot.layout.title.text,
+                partial_plot_integrated_list[feature_index].layout.title.text,
+                embedding_integrated_plot.layout.title.text)
+        )
+
+        fig_integrated.add_traces(cluster_integrated_plot.data, rows=1, cols=1)
+        fig_integrated.add_traces(partial_plot_integrated_list[feature_index].data, rows=1, cols=2)
+        fig_integrated.add_traces(embedding_integrated_plot.data, rows=2, cols=2)
+
+        fig_integrated.update_layout(cluster_integrated_plot.layout)
+        fig_integrated.update_scenes(cluster_integrated_plot.layout.scene, row=1, col=1)
+        fig_integrated.update_scenes(partial_plot_integrated_list[feature_index].layout.scene, row=1, col=2)
+        fig_integrated.update_xaxes(title="Embedding dimension X", row=2, col=2)
+        fig_integrated.update_yaxes(title="Embedding dimension Y", row=2, col=2)
+        fig_integrated.update_layout(title_text='Partial Compound Plot')
+
+        fig_integrated.write_html(folder_ / f'PartialCompound_Integrated_{feature_index + 1}.html')
+
+    return
