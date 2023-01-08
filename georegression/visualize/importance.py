@@ -16,12 +16,13 @@ def global_importance_plot(importance_matrix, labels=None, index=True, folder_=f
 
     # Default labels if not provided.
     if labels is None:
-        labels = [f'Feature {i}' for i in range(importance_matrix.shape[0])]
+        labels = [f'Feature {i + 1}' for i in range(importance_matrix.shape[0])]
     labels = np.array(labels)
 
     # Add index for labels
     if index:
-        labels = [f'{i}. {labels[i]}' for i in range(labels.shape[0])]
+        labels = [f'{i + 1}. {labels[i]}' for i in range(labels.shape[0])]
+    labels = np.array(labels)
 
     # Sort by the mean of importance value
     importance_mean = np.mean(importance_matrix, axis=1)

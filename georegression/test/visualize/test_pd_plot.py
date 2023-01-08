@@ -24,7 +24,7 @@ def test_pd_plot():
     model.partial_dependence()
 
     feature_embedding, feature_cluster_label, cluster_embedding, cluster_label = partial_cluster(
-        xy_vector[:100], time[:100], model.feature_partial_)
+        model.feature_partial_)
 
     partial_compound_plot(
         xy_vector[:100], time[:100], model.feature_partial_,
@@ -39,8 +39,6 @@ def test_pd_plot():
     )
     partial_plot_2d(model.feature_partial_, model.coordinate_vector_list[1], cluster_vector=cluster_label)
 
-
-
     model.local_ICE()
     feature_distance, feature_cluster_label, distance_matrix, cluster_label = partial_cluster(
         xy_vector[:100], time[:100], model.feature_ice_
@@ -50,8 +48,6 @@ def test_pd_plot():
         # quantile=[0, 0.2, 0.8, 1],
         is_ICE=True
     )
-
-
 
 
 if __name__ == '__main__':
