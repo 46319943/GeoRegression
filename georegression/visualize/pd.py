@@ -9,6 +9,7 @@ from joblib import Parallel, delayed
 from matplotlib import cm, pyplot as plt
 from plotly.subplots import make_subplots
 from scipy.cluster.hierarchy import dendrogram
+from scipy.spatial.distance import cdist, pdist, squareform
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.inspection import PartialDependenceDisplay
 from hdbscan import HDBSCAN
@@ -72,37 +73,79 @@ def select_partial(feature_partial, sample_size=None, quantile=None):
 
 
 def partial_plot_2d(
-        feature_partial, temporal_vector, cluster_vector=None,
-        sample_size=None, quantile=None, folder_=folder
+        feature_partial, cluster_vector, cluster_typical,
+        weight_style=True, alpha_range=None, width_range=None, scale_power=1,
+        folder_=folder
 ):
+    """
+
+    Args:
+
+        feature_partial (): Shape(Feature, N, 2)
+        cluster_vector (): Shape(N,)
+        cluster_typical (): Shape(n_cluster)
+        alpha_range ():
+        width_range ():
+        scale_power ():
+        weight_style (bool):
+        folder_ ():
+
+    Returns:
+
+    """
+
+    # TODO: Support for separated cluster of each feature?
+
+    if alpha_range is None:
+        alpha_range = [0.1, 1]
+    if width_range is None:
+        width_range = [0.5, 3]
+
     feature_count = len(feature_partial)
 
-    # Tile
-    temporal_vector = np.tile(temporal_vector.reshape(1, -1), (feature_count, 1))
-    if cluster_vector is not None:
-        cluster_vector = np.tile(cluster_vector.reshape(1, -1), (feature_count, 1))
+    # Style the line by the cluster size.
+    values, counts = np.unique(cluster_vector, return_counts=True)
+    if np.max(counts) == np.min(counts):
+        style_ratios = np.ones_like(cluster_vector)
+    else:
+        style_ratios = (counts - np.min(counts)) / (np.max(counts) - np.min(counts))
+        style_ratios = style_ratios ** scale_power
+    # np.xx_like returns array having the same type as input array.
+    style_alpha = np.zeros_like(cluster_vector, dtype=float)
+    style_width = np.zeros_like(cluster_vector, dtype=float)
+    for value, style_ratio in zip(values, style_ratios):
+        cluster_index = np.nonzero(cluster_vector == value)
+        style_alpha[cluster_index] = alpha_range[0] + (alpha_range[1] - alpha_range[0]) * style_ratio
+        style_width[cluster_index] = width_range[0] + (width_range[1] - width_range[0]) * style_ratio
 
-    # Do selection
-    if sample_size is not None or quantile is not None:
-        selection_matrix = select_partial(feature_partial, sample_size, quantile)
-        # Order matters
-        feature_partial = feature_partial[selection_matrix].reshape(feature_count, -1, 2)
-        temporal_vector = temporal_vector[selection_matrix].reshape(feature_count, -1)
-        if cluster_vector is not None:
-            cluster_vector = cluster_vector[selection_matrix].reshape(feature_count, -1)
+    # Cluster typical selection
+    feature_partial = feature_partial[:, cluster_typical]
+    cluster_vector = cluster_vector[cluster_typical]
+    style_alpha = style_alpha[cluster_typical]
+    style_width = style_width[cluster_typical]
 
     local_count = len(feature_partial[0])
-    color_vector = vector_to_color(temporal_vector, stringify=False)
+    color_vector = vector_to_color(cluster_vector, stringify=False)
 
     # Matplotlib Plot Gird
     col = 3
     row = math.ceil(feature_count / col)
     col_length = 3
-    row_length = 3
+    row_length = 2
+
+    # Close interactive mode
+    plt.ioff()
+
     fig, axs = plt.subplots(
-        ncols=col, nrows=row, sharey='all',
-        figsize=(col * col_length, row * row_length)
+        ncols=col, nrows=row, sharey='none',
+        figsize=(col * col_length, (row + 1) * row_length)
     )
+
+    # Set figure size after creating to avoid screen resize.
+    if plt.isinteractive():
+        plt.gcf().set_size_inches(col * col_length, (row + 1) * row_length)
+
+    # 2d-ndarray flatten
     axs = axs.flatten()
 
     # Remove null axis
@@ -119,25 +162,24 @@ def partial_plot_2d(
                 *feature_partial[feature_index, local_index],
                 **{
                     # Receive color tuple/list/array
-                    "color": color_vector[feature_index, local_index],
-                    "alpha": 0.5, "linewidth": 0.5
+                    "color": color_vector[local_index],
+                    "alpha": style_alpha[local_index], "linewidth": style_width[local_index],
+                    "label": f'Cluster {cluster_vector[local_index] + 1}'
                 })
-            ax.set_title(f'Feature {feature_index}')
-            ax.set_xlabel('X Value')
-            ax.set_ylabel('Partial Dependent Value')
+            ax.set_title(f'Feature {feature_index + 1}')
+
+    fig.supxlabel('Independent Value')
+    fig.supylabel('Partial Dependent Value')
 
     plt.tight_layout(h_pad=1.5)
-    plt.subplots_adjust(top=0.9)
-    plt.suptitle(f'Geo-weighted PDP \n\nSample Size: {sample_size}, Quantile: {quantile}')
+    plt.subplots_adjust(top=0.85)
+    plt.suptitle(f'Geo-weighted PDP')
 
-    if sample_size is not None:
-        suffix = '_Sample' + sample_size
-    elif quantile is not None:
-        suffix = '_Q' + ';'.join(map(str, quantile))
-    else:
-        suffix = ''
+    handles, labels = ax.get_legend_handles_labels()
+    # put the center upper edge of the bounding box at the coordinates(bbox_to_anchor)
+    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 0.965), ncol=6)
 
-    plt.savefig(folder_ / f'GeoPDP{suffix}.png')
+    plt.savefig(folder_ / f'GeoPDP.png')
     plt.close()
 
 
@@ -466,6 +508,31 @@ def partial_cluster(
     feature_embedding = np.array(feature_embedding)
 
     return feature_embedding, feature_cluster_label, cluster_embedding, cluster_label
+
+
+def choose_cluster_typical(embedding, cluster_vector):
+    """
+    Return the index of typical items for each cluster.
+    The typical item of a cluster is the centre of the cluster,
+    which has the minimal summation of distance to others in the same cluster.
+
+    Args:
+        embedding ():
+        cluster_vector ():
+
+    Returns:
+
+    """
+    cluster_typical_list = []
+    cluster_value = np.unique(cluster_vector)
+    for cluster in cluster_value:
+        cluster_index_vector = np.nonzero(cluster_vector == cluster)[0]
+        embedding_cluster = embedding[cluster_index_vector]
+        cluster_typical_list.append(
+            cluster_index_vector[np.argmin(np.sum(squareform(pdist(embedding_cluster)), axis=1))]
+        )
+
+    return cluster_typical_list
 
 
 def embedding_plot(
