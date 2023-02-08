@@ -4,21 +4,26 @@ from matplotlib import pyplot as plt
 from sklearn.linear_model import LinearRegression
 
 
+# TODO: Notice: Diagonal of the matrix is set to 0.
+# TODO: Formular revision required.
+
 def calculate_spatial_temporal_global_moran(y, spatial_temporal_weight):
+    spatial_temporal_weight = spatial_temporal_weight / np.sum(spatial_temporal_weight, axis=1)
+
     N = y.shape[0]
     y_mean = np.mean(y)
-    z = y - y_mean
-    a = np.matmul(spatial_temporal_weight, z)
-    numerator = N * np.matmul(z, a)
+    # Deviation from the mean without normalization by std.
+    u = y - y_mean
+    numerator = N * np.matmul(u, np.matmul(spatial_temporal_weight, u))
     W = np.sum(spatial_temporal_weight)
-    denominator = W * np.sum(z ** 2)
+    denominator = W * np.sum(u ** 2)
     I = numerator / denominator
 
     expectation = -1 / (N - 1)
 
     S1 = (1 / 2) * np.sum((spatial_temporal_weight + spatial_temporal_weight.T) ** 2)
     S2 = np.sum(np.sum(spatial_temporal_weight + spatial_temporal_weight.T, axis=1) ** 2)
-    S3 = N ** (-1) * np.sum(z ** 4) / (N ** (-1) * np.sum(z ** 2)) ** 2
+    S3 = N ** (-1) * np.sum(u ** 4) / (N ** (-1) * np.sum(u ** 2)) ** 2
     S4 = (N ** 2 - 3 * N + 3) * S1 - N * S2 + 3 * W ** 2
     S5 = (N ** 2 - N) * S1 - 2 * N * S2 + 6 * W ** 2
 
@@ -29,10 +34,13 @@ def calculate_spatial_temporal_global_moran(y, spatial_temporal_weight):
 
 
 def calculate_spatial_temporal_local_moran(y, spatial_temporal_weight):
+    spatial_temporal_weight = spatial_temporal_weight / np.sum(spatial_temporal_weight, axis=1)
+
     N = y.shape[0]
-    u = (y - np.mean(y)) / np.var(y)
-    a = np.matmul(spatial_temporal_weight, u)
-    return u * a
+    y_mean = np.mean(y)
+    u = y - y_mean
+    m2 = np.sum(u ** 2) / N
+    return (u / m2) * np.matmul(spatial_temporal_weight, u)
 
 
 def plot_moran_diagram(y, weight_matrix):

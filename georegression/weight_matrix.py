@@ -134,7 +134,7 @@ def calculate_compound_weight(one_coordinate_vector_list: list[np.ndarray],
     if len(many_coordinate_vector_list) != dimension:
         raise Exception('Unmatched vector list dimension')
 
-    # Check whether use fixed kernel or adaptive kernel
+    # Check whether to use fixed kernel or adaptive kernel
     if bandwidth is None and neighbour_count is None:
         raise Exception('At least one of bandwidth or neighbour count should be provided')
 
