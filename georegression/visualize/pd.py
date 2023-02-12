@@ -82,8 +82,8 @@ def partial_plot_2d(
     Args:
 
         feature_partial (): Shape(Feature, N, 2)
-        cluster_vector (): Shape(N,)
-        cluster_typical (): Shape(n_cluster)
+        cluster_vector (): Shape(N,) or Shape(Feature, N)
+        cluster_typical (): Shape(n_cluster) or Shape(Feature, n_cluster)
         alpha_range ():
         width_range ():
         scale_power ():
@@ -101,31 +101,13 @@ def partial_plot_2d(
     if width_range is None:
         width_range = [0.5, 3]
 
-    feature_count = len(feature_partial)
-
-    # Style the line by the cluster size.
-    values, counts = np.unique(cluster_vector, return_counts=True)
-    if np.max(counts) == np.min(counts):
-        style_ratios = np.ones_like(cluster_vector)
+    if len(cluster_vector.shape) == 1:
+        is_integrated = True
     else:
-        style_ratios = (counts - np.min(counts)) / (np.max(counts) - np.min(counts))
-        style_ratios = style_ratios ** scale_power
-    # np.xx_like returns array having the same type as input array.
-    style_alpha = np.zeros_like(cluster_vector, dtype=float)
-    style_width = np.zeros_like(cluster_vector, dtype=float)
-    for value, style_ratio in zip(values, style_ratios):
-        cluster_index = np.nonzero(cluster_vector == value)
-        style_alpha[cluster_index] = alpha_range[0] + (alpha_range[1] - alpha_range[0]) * style_ratio
-        style_width[cluster_index] = width_range[0] + (width_range[1] - width_range[0]) * style_ratio
+        is_integrated = False
 
-    # Cluster typical selection
-    feature_partial = feature_partial[:, cluster_typical]
-    cluster_vector = cluster_vector[cluster_typical]
-    style_alpha = style_alpha[cluster_typical]
-    style_width = style_width[cluster_typical]
-
+    feature_count = len(feature_partial)
     local_count = len(feature_partial[0])
-    color_vector = vector_to_color(cluster_vector, stringify=False)
 
     # Matplotlib Plot Gird
     col = 3
@@ -156,15 +138,45 @@ def partial_plot_2d(
     for feature_index in range(feature_count):
         ax = axs[feature_index]
 
-        for local_index in range(local_count):
+        if is_integrated:
+            inner_vector = np.copy(cluster_vector)
+            inner_typical = np.copy(cluster_typical)
+        else:
+            inner_vector = cluster_vector[feature_index]
+            inner_typical = cluster_typical[feature_index]
+
+        # Style the line by the cluster size.
+        values, counts = np.unique(inner_vector, return_counts=True)
+        if np.max(counts) == np.min(counts):
+            style_ratios = np.ones(local_count)
+        else:
+            style_ratios = (counts - np.min(counts)) / (np.max(counts) - np.min(counts))
+            style_ratios = style_ratios ** scale_power
+        # np.xx_like returns array having the same type as input array.
+        style_alpha = np.zeros(local_count)
+        style_width = np.zeros(local_count)
+        for value, style_ratio in zip(values, style_ratios):
+            cluster_index = np.nonzero(inner_vector == value)
+            style_alpha[cluster_index] = alpha_range[0] + (alpha_range[1] - alpha_range[0]) * style_ratio
+            style_width[cluster_index] = width_range[0] + (width_range[1] - width_range[0]) * style_ratio
+
+        # Cluster typical selection
+        inner_partial = feature_partial[feature_index, inner_typical]
+        inner_vector = inner_vector[inner_typical]
+        style_alpha = style_alpha[inner_typical]
+        style_width = style_width[inner_typical]
+
+        color_vector = vector_to_color(inner_vector, stringify=False)
+
+        for local_index in range(len(inner_partial)):
             # Matplotlib 2D plot
             ax.plot(
-                *feature_partial[feature_index, local_index],
+                *inner_partial[local_index],
                 **{
                     # Receive color tuple/list/array
                     "color": color_vector[local_index],
                     "alpha": style_alpha[local_index], "linewidth": style_width[local_index],
-                    "label": f'Cluster {cluster_vector[local_index] + 1}'
+                    "label": f'Cluster {inner_vector[local_index] + 1}'
                 })
             ax.set_title(f'Feature {feature_index + 1}')
 
@@ -175,11 +187,12 @@ def partial_plot_2d(
     plt.subplots_adjust(top=0.85)
     plt.suptitle(f'Geo-weighted PDP')
 
-    handles, labels = ax.get_legend_handles_labels()
-    # put the center upper edge of the bounding box at the coordinates(bbox_to_anchor)
-    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 0.965), ncol=6)
+    if is_integrated:
+        handles, labels = ax.get_legend_handles_labels()
+        # put the center upper edge of the bounding box at the coordinates(bbox_to_anchor)
+        fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 0.965), ncol=6)
 
-    plt.savefig(folder_ / f'GeoPDP.png')
+    plt.savefig(folder_ / f'GeoPDP{"_Integrated" if is_integrated else ""}.png')
     plt.close()
 
 

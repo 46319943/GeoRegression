@@ -47,10 +47,19 @@ class TestCalculations(unittest.TestCase):
         model = self.model
         feature_embedding, feature_cluster_label, cluster_embedding, cluster_label = self.partial_cluster_result
 
-        cluster_typical = choose_cluster_typical(cluster_embedding, cluster_label)
+        # cluster_typical = choose_cluster_typical(cluster_embedding, cluster_label)
+        # partial_plot_2d(
+        #     model.feature_partial_, cluster_label, cluster_typical,
+        #     alpha_range=[0.1, 1], width_range=[0.5, 3], scale_power=1.5
+        # )
+
+        cluster_typical = [
+            choose_cluster_typical(embedding, cluster)
+            for embedding, cluster in zip(feature_embedding, feature_cluster_label)
+        ]
         partial_plot_2d(
-            model.feature_partial_, cluster_label, cluster_typical,
-            alpha_range=[0.1, 1], width_range=[0.5, 3], scale_power=1.5
+            model.feature_partial_, feature_cluster_label, cluster_typical,
+            alpha_range=[0.3, 1], width_range=[0.5, 3], scale_power=1.5
         )
 
     def test_pd_3d_plot(self):
