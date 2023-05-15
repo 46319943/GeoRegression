@@ -4,13 +4,14 @@ import numpy as np
 from plotly import express as px, graph_objects as go
 from georegression.visualize.utils import vector_to_color
 
-from georegression.visualize import folder
+from georegression.visualize import default_folder
 
 
 def scatter_3d(
         geo_vector, temporal_vector, value,
         figure_title, value_name, filename=None,
-        is_cluster=False, folder_=folder
+        is_cluster=False,
+        folder=default_folder
 ):
     # Shape(N, )
     x = geo_vector[:, 0]
@@ -26,6 +27,8 @@ def scatter_3d(
     z_min = np.min(z)
     z_max = np.max(z)
     z_interval = z_max - z_min
+    z_unique = np.unique(z)
+    z_step = z_interval / len(z_unique)
 
     value = np.array(value)
     count = value.shape[0]
@@ -102,8 +105,7 @@ def scatter_3d(
     # Time Surface
     x_surface = (x_min, x_min, x_max, x_max)
     y_surface = (y_min, y_max, y_max, y_min)
-    z_unique = np.unique(z)
-    z_shift = z_interval / len(z_unique) * 0.08
+    z_shift = z_step * 0.08
     surface_color = vector_to_color(np.unique(z))
 
     fig.add_traces([
@@ -149,6 +151,9 @@ def scatter_3d(
 
         # Legend
         legend_title="Point and Surface Legend",
+
+        template="seaborn",
+        font_family="Times New Roman"
     )
 
     fig.update_scenes(
@@ -162,34 +167,34 @@ def scatter_3d(
         # Axis label
         xaxis=dict(
             title='X Position',
-            ticktext=['X Negative', 'X Positive'],
+            ticktext=['Neg', 'Pos'],
             tickvals=[x_min, x_max],
             range=[x_min - x_interval * 0.12, x_max + x_interval * 0.12],
-            backgroundcolor="rgb(200, 200, 230)",
-            gridcolor="white",
+            # backgroundcolor="rgb(200, 200, 230)",
+            # gridcolor="white",
             showbackground=True,
-            zerolinecolor="white",
+            # zerolinecolor="white",
             showspikes=False
         ),
         yaxis=dict(
             title='Y Position',
-            ticktext=['Y Negative', 'Y Positive'],
+            ticktext=['Neg', 'Pos'],
             tickvals=[y_min, y_max],
             range=[y_min - y_interval * 0.12, y_max + y_interval * 0.12],
-            backgroundcolor="rgb(230, 200,230)",
-            gridcolor="white",
+            # backgroundcolor="rgb(230, 200,230)",
+            # gridcolor="white",
             showbackground=True,
-            zerolinecolor="white",
+            # zerolinecolor="white",
             showspikes=False
         ),
         zaxis=dict(
             title='Temporal Slice Index',
             tickvals=z_unique,
-            range=[z_min - z_interval * 0.1, z_max + z_interval * 0.1],
-            backgroundcolor="rgb(230, 230,200)",
-            gridcolor="white",
+            range=[z_min - z_step * 0.5, z_max + z_step * 0.5],
+            # backgroundcolor="rgb(230, 230,200)",
+            # gridcolor="white",
             showbackground=True,
-            zerolinecolor="white",
+            # zerolinecolor="white",
             # showspikes=False
         ),
     )
@@ -198,6 +203,6 @@ def scatter_3d(
     if filename is None:
         filename = f'{figure_title}_{value_name}'
 
-    fig.write_html(folder_ / f'{filename}.html')
+    fig.write_html(folder / f'{filename}.html')
 
     return fig

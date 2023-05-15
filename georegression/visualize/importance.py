@@ -1,10 +1,10 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
-from georegression.visualize import folder
+from georegression.visualize import default_folder
 
 
-def global_importance_plot(importance_matrix, labels=None, index=True, folder_=folder):
+def global_importance_plot(importance_matrix, labels=None, index=True, folder_=default_folder):
     """
     Args:
         importance_matrix (np.ndarray): Shape(Feature, n_repeats).

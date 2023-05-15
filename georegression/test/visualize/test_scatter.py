@@ -1,7 +1,7 @@
 from sklearn.linear_model import LinearRegression
 
 from georegression.test.data import load_HP
-from georegression.visualize.pd import partial_cluster
+from georegression.visualize.pd import features_partial_cluster
 from georegression.weight_model import WeightModel
 from georegression.visualize.scatter import scatter_3d
 
@@ -27,7 +27,7 @@ def test_scatter():
     # Cluster case
     model.fit(X[:100, :10], y[:100], [xy_vector[:100], time[:100]])
     model.partial_dependence()
-    feature_distance, feature_cluster_label, distance_matrix, cluster_label = partial_cluster(
+    feature_distance, feature_cluster_label, distance_matrix, cluster_label = features_partial_cluster(
         xy_vector[:100], time[:100], model.feature_partial_)
 
     scatter_3d(

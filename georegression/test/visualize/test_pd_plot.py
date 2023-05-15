@@ -5,7 +5,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 
 from georegression.test.data import load_HP
-from georegression.visualize.pd import select_partial, partial_plot_3d, partial_cluster, partial_plot_2d, \
+from georegression.visualize.pd import select_partial, partial_plot_3d, features_partial_cluster, partial_plot_2d, \
     partial_compound_plot, choose_cluster_typical
 from georegression.weight_model import WeightModel
 
@@ -30,7 +30,7 @@ class TestCalculations(unittest.TestCase):
 
         cls.model = model
 
-        cls.partial_cluster_result = partial_cluster(
+        cls.partial_cluster_result = features_partial_cluster(
             model.feature_partial_)
 
     def test_compound_plot(self):
@@ -72,7 +72,7 @@ class TestCalculations(unittest.TestCase):
         )
 
         model.local_ICE()
-        feature_distance, feature_cluster_label, distance_matrix, cluster_label = partial_cluster(
+        feature_distance, feature_cluster_label, distance_matrix, cluster_label = features_partial_cluster(
             xy_vector[:100], time[:100], model.feature_ice_
         )
         partial_plot_3d(

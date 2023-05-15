@@ -17,10 +17,12 @@ from umap import UMAP
 import plotly.graph_objects as go
 import plotly.express as px
 
+from scipy.stats import logistic
+
 from georegression.visualize.scatter import scatter_3d
 from georegression.visualize.utils import vector_to_color, range_margin
 
-from georegression.visualize import folder
+from georegression.visualize import default_folder
 
 
 def select_partial(feature_partial, sample_size=None, quantile=None):
@@ -74,8 +76,8 @@ def select_partial(feature_partial, sample_size=None, quantile=None):
 
 def partial_plot_2d(
         feature_partial, cluster_vector, cluster_typical,
-        weight_style=True, alpha_range=None, width_range=None, scale_power=1,
-        folder_=folder
+        weight_style=True, alpha_range=None, width_range=None, use_sigmoid=True, scale_power=1,
+        folder_=default_folder
 ):
     """
 
@@ -87,14 +89,13 @@ def partial_plot_2d(
         alpha_range ():
         width_range ():
         scale_power ():
+        use_sigmoid ():
         weight_style (bool):
         folder_ ():
 
     Returns:
 
     """
-
-    # TODO: Support for separated cluster of each feature?
 
     if alpha_range is None:
         alpha_range = [0.1, 1]
@@ -150,7 +151,11 @@ def partial_plot_2d(
         if np.max(counts) == np.min(counts):
             style_ratios = np.ones(local_count)
         else:
-            style_ratios = (counts - np.min(counts)) / (np.max(counts) - np.min(counts))
+            # style_ratios = (counts - np.min(counts)) / (np.max(counts) - np.min(counts))
+            style_ratios = counts / local_count
+            if use_sigmoid:
+                style_ratios = (style_ratios - 0.5) * 10
+                style_ratios = logistic.cdf(style_ratios)
             style_ratios = style_ratios ** scale_power
         # np.xx_like returns array having the same type as input array.
         style_alpha = np.zeros(local_count)
@@ -176,29 +181,54 @@ def partial_plot_2d(
                     # Receive color tuple/list/array
                     "color": color_vector[local_index],
                     "alpha": style_alpha[local_index], "linewidth": style_width[local_index],
-                    "label": f'Cluster {inner_vector[local_index] + 1}'
+                    "label": f'Cluster {inner_vector[local_index]}'
                 })
             ax.set_title(f'Feature {feature_index + 1}')
+
+        # Individual file for each feature
+        fig_ind = plt.figure(figsize=(5, 4), constrained_layout=True)
+        for local_index in range(len(inner_partial)):
+            fig_ind.gca().plot(
+                *inner_partial[local_index],
+                **{
+                    # Receive color tuple/list/array
+                    "color": color_vector[local_index],
+                    "alpha": style_alpha[local_index], "linewidth": style_width[local_index],
+                    "label": f'Cluster {inner_vector[local_index]}'
+                }
+            )
+        plt.xlabel('Independent Value')
+        plt.ylabel('Partial Dependent Value')
+        plt.title(f'SPPDP of Typical Cluster in Feature {feature_index + 1}', pad=60)
+        plt.legend(
+            loc='upper center', bbox_to_anchor=(0.5, 1.3), ncol=5,
+            columnspacing=0.2, fontsize='x-small', numpoints=2
+        )
+        fig_ind.savefig(
+            folder_ / f'SPPDP_Typical{"_Merged" if is_integrated else ""}{feature_index + 1}',
+            dpi=300
+        )
+        fig_ind.clear()
 
     fig.supxlabel('Independent Value')
     fig.supylabel('Partial Dependent Value')
 
-    plt.tight_layout(h_pad=1.5)
-    plt.subplots_adjust(top=0.85)
-    plt.suptitle(f'Geo-weighted PDP')
+    fig.tight_layout(h_pad=1.5)
+    fig.subplots_adjust(top=0.85)
+    fig.suptitle(f'SPPDP')
 
     if is_integrated:
         handles, labels = ax.get_legend_handles_labels()
         # put the center upper edge of the bounding box at the coordinates(bbox_to_anchor)
         fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 0.965), ncol=6)
 
-    plt.savefig(folder_ / f'GeoPDP{"_Integrated" if is_integrated else ""}.png')
-    plt.close()
+    fig.savefig(folder_ / f'SPPDP{"_Merged" if is_integrated else ""}.png')
+    fig.clear()
 
 
 def partial_plot_3d(
         feature_partial, temporal_vector, cluster_vector=None,
-        sample_size=None, quantile=None, is_ICE=False, labels=None, folder_=folder
+        sample_size=None, quantile=None, is_ICE=False, labels=None, folder=default_folder
 ):
     """
 
@@ -210,7 +240,7 @@ def partial_plot_3d(
         quantile ():
         is_ICE ():
         labels ():
-        folder_ ():
+        folder ():
 
     Returns:
 
@@ -220,6 +250,7 @@ def partial_plot_3d(
 
     # Tile
     temporal_vector = np.tile(temporal_vector.reshape(1, -1), (feature_count, 1))
+    index_label = np.tile(np.arange(len(feature_partial[0])).reshape(1, -1), (feature_count, 1))
 
     # Feature cluster or Integrated cluster.
     is_integrated = False
@@ -235,6 +266,7 @@ def partial_plot_3d(
         # Order matters
         feature_partial = feature_partial[selection_matrix].reshape(feature_count, -1, 2)
         temporal_vector = temporal_vector[selection_matrix].reshape(feature_count, -1)
+        index_label = index_label[selection_matrix].reshape(feature_count, -1)
         if cluster_vector is not None:
             cluster_vector = cluster_vector[selection_matrix].reshape(feature_count, -1)
 
@@ -288,7 +320,7 @@ def partial_plot_3d(
                 hovertemplate=
                 '<b>X Value</b>: %{y} <br />' +
                 '<b>Time Slice</b>: %{x}  <br />' +
-                f'<b>Index</b>: {local_index}  <br />' +
+                f'<b>Index</b>: {index_label[feature_index, local_index]}  <br />' +
                 '<b>Partial Value</b>: %{z}  <br />'
 
             )
@@ -297,7 +329,7 @@ def partial_plot_3d(
         fig = go.Figure(data=trace_list)
         fig.update_layout(
             title={
-                'text': f"Temporal Partial Dependency of Feature {feature_index + 1} {labels[feature_index] if labels is not None else ''}",
+                'text': f"SPPDP of Feature {feature_index + 1} {labels[feature_index] if labels is not None else ''}",
                 'xanchor': 'center',
                 'x': 0.45,
                 'yanchor': 'top',
@@ -307,7 +339,9 @@ def partial_plot_3d(
             legend_title="Cluster Legend",
             font=dict(
                 size=12,
-            )
+            ),
+            template="seaborn",
+            font_family="Times New Roman"
         )
 
         # Fix range while toggling trace.
@@ -334,13 +368,13 @@ def partial_plot_3d(
             suffix = ''
 
         fig.write_html(
-            folder_ / f'Geo{"PDP" if not is_ICE else "ICE"}{"_Integrated" if is_integrated else ""}_{feature_index + 1}{suffix}.html')
+            folder / f'SP{"PDP" if not is_ICE else "ICE"}{"_Merged" if is_integrated else ""}_{feature_index + 1}{suffix}.html')
         fig_list.append(fig)
 
     return fig_list
 
 
-def feature_partial_distance(partial):
+def partial_distance(partial):
     """
     Calculation distance between partial lines.
 
@@ -380,7 +414,15 @@ def feature_partial_distance(partial):
                 # Minimal square distance of two line. Optimal at -b/2a. a is coef of x^2, and b is coef of x.
                 intercept = - np.sum(y_merge_origin - y_merge_dest) / len(x_merge)
                 pointwise_distance = (y_merge_origin - y_merge_dest + intercept) ** 2
-                distance = np.average(pointwise_distance)
+
+                # Weighting according to the point interval in the bi-direction.
+                distance_weight = np.zeros_like(x_merge)
+                distance_weight[1:-1] = x_merge[2:] - x_merge[:-2]
+                distance_weight[0] = (x_merge[1] - x_merge[0]) * 2
+                distance_weight[-1] = (x_merge[-1] - x_merge[-2]) * 2
+                distance_weight = distance_weight / np.sum(distance_weight)
+
+                distance = np.average(pointwise_distance, weights=distance_weight)
 
             line_distance_list.append(distance)
         line_distance_matrix[origin_index, origin_index:] = line_distance_list
@@ -395,51 +437,120 @@ def feature_partial_distance(partial):
     return line_distance_matrix
 
 
-def partial_distance(feature_partial):
+def features_partial_distance(features_partial):
     """
     Calculation distance between partial lines.
 
     Args:
-        feature_partial (np.ndarray): Shape(Feature, N, 2)
+        features_partial (np.ndarray): Shape(Feature, N, 2)
 
     Returns:
         feature_distance (np.ndarray): Shape(Feature, N, N)
 
     """
 
-    feature_count = feature_partial.shape[0]
+    feature_count = features_partial.shape[0]
 
     # Shape(Feature, N, N)
-    feature_distance = Parallel(n_jobs=-1)(
+    features_distance = Parallel(n_jobs=-1)(
         # Single feature based cluster. Iterate each feature
-        delayed(feature_partial_distance)(feature_partial[feature_index])
+        delayed(partial_distance)(features_partial[feature_index])
         for feature_index in range(feature_count)
     )
 
-    return np.array(feature_distance)
+    return np.array(features_distance)
 
 
 def partial_cluster(
-        feature_partial=None, feature_distance=None,
+        partial=None, distance=None,
+        n_neighbours=5, min_dist=0.1, n_components=2,
+        min_cluster_size=10, min_samples=3, cluster_selection_epsilon=1,
+
+        select_clusters=False,
+        plot_title=None, plot_filename=None, plot_folder=default_folder,
+):
+    """
+    Cluster data based on partial dependence result or derived distance matrix.
+
+    Args:
+
+        partial (np.ndarray): Shape(N, 2)
+        distance (np.ndarray): Shape(N, N)
+        n_neighbours:
+        min_dist:
+        n_components:
+        min_cluster_size:
+        min_samples:
+        cluster_selection_epsilon:
+        select_clusters:
+        plot_filename:
+        plot_title:
+        plot_folder:
+
+    Returns:
+
+    """
+
+    if plot_title is None:
+        plot_title = f'Condensed trees'
+    if plot_filename is None:
+        plot_filename = f'CondensedTrees.png'
+
+    # Parameter check
+    if partial is None and distance is None:
+        raise Exception('Feature partial or feature distance matrix should be provided.')
+
+    # Ensure feature distance is available.
+    if distance is None:
+        distance = partial_distance(partial)
+
+    # TODO: Range of UMAP embedding value?
+    # Reduce dimension. Mapping the distance matrix to low dimension space embedding.
+    # Standard embedding is used for visualization. Clusterable embedding is used for clustering.
+    standard_embedding = UMAP(
+        random_state=42, n_neighbors=n_neighbours, min_dist=min_dist, metric='precomputed'
+    ).fit_transform(distance)
+    if n_components == 2:
+        clusterable_embedding = standard_embedding
+    else:
+        clusterable_embedding = UMAP(
+            random_state=42, n_neighbors=n_neighbours, min_dist=min_dist, n_components=n_components,
+            metric='precomputed'
+        ).fit_transform(distance)
+
+    model = HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples,
+                    cluster_selection_epsilon=cluster_selection_epsilon
+                    ).fit(clusterable_embedding)
+
+    model.condensed_tree_.plot(select_clusters=select_clusters)
+    plt.title(plot_title)
+    plt.savefig(plot_folder / plot_filename)
+    plt.clf()
+
+    return standard_embedding, model.labels_, distance
+
+
+def features_partial_cluster(
+        features_partial=None, features_distance=None,
         n_neighbours=5, min_dist=0.1, n_components=2,
         min_cluster_size=10, min_samples=3, cluster_selection_epsilon=1,
         select_clusters=False,
-        labels=None, only_integrated=False, folder_=folder,
+        labels=None, only_integrated=False, folder=default_folder,
 ):
     """
     Cluster data point based on partial dependency
 
     Args:
         labels (): Feature labels.
-        feature_distance ():
-        folder_ ():
+        features_distance ():
+        folder ():
         n_neighbours ():
         min_dist ():
         n_components ():
         min_cluster_size ():
         min_samples ():
         cluster_selection_epsilon ():
-        feature_partial (np.ndarray): Shape(Feature, N, 2)
+        features_partial (np.ndarray): Shape(Feature, N, 2)
         select_clusters ():
 
     Returns:
@@ -450,77 +561,58 @@ def partial_cluster(
     # TODO: More fine-tuning control on the multi-features and integrate-feature.
 
     # Parameter check
-    if feature_partial is None and feature_distance is None:
+    if features_partial is None and features_distance is None:
         raise Exception('Feature partial or feature distance should be provided.')
 
     # Ensure feature distance is available.
-    if feature_distance is None:
-        feature_distance = partial_distance(feature_partial)
+    if features_distance is None:
+        features_distance = features_partial_distance(features_partial)
 
     # Integrated feature cluster
 
-    # Distance based on feature distance.
-    distance_matrix = np.sum(feature_distance, axis=0)
-
-    standard_embedding = UMAP(
-        random_state=42, n_neighbors=n_neighbours * 2, min_dist=min_dist * 2, metric='precomputed'
-    ).fit_transform(distance_matrix)
-    model = HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples,
-                    cluster_selection_epsilon=cluster_selection_epsilon
-                    ).fit(standard_embedding)
-    cluster_label = model.labels_
-    cluster_embedding = standard_embedding
-    model.condensed_tree_.plot(select_clusters=select_clusters)
-    plt.title(f'Condensed trees of total features')
-    plt.savefig(folder_ / f'CondensedTrees_Integrated.png')
-    plt.clf()
+    # Sum the distance over each feature.
+    # Shape(Feature, N, N) -> Shape(N, N).
+    distance = np.sum(features_distance, axis=0)
+    cluster_embedding, cluster_label, _ = partial_cluster(distance=distance, n_neighbours=n_neighbours * 2, min_dist=min_dist * 2,
+                                                          n_components=n_components, min_cluster_size=min_cluster_size, min_samples=min_samples,
+                                                          cluster_selection_epsilon=cluster_selection_epsilon,
+                                                          select_clusters=select_clusters,
+                                                          plot_title=f'Condensed trees of total features',
+                                                          plot_filename=f'CondensedTrees_Integrated.png',
+                                                          plot_folder=folder
+                                                          )
 
     # Return the result if only the integrated result is required.
     if only_integrated:
         return cluster_embedding, cluster_label
 
     # Individual feature cluster
-
-    feature_count = feature_distance.shape[0]
+    feature_count = features_distance.shape[0]
 
     # Shape(Feature, N, 2)
-    feature_embedding = []
+    features_embedding = []
     # Shape(Feature, N)
-    feature_cluster_label = []
+    features_cluster_label = []
     for feature_index in range(feature_count):
-        # TODO: Range of UMAP embedding value?
-        # Dimension reduction. Standard for visualization. Clusterable for clustering.
-        standard_embedding = UMAP(
-            random_state=42, n_neighbors=n_neighbours, min_dist=min_dist, metric='precomputed'
-        ).fit_transform(feature_distance[feature_index])
-        if n_components == 2:
-            clusterable_embedding = standard_embedding
-        else:
-            clusterable_embedding = UMAP(
-                random_state=42, n_neighbors=n_neighbours, min_dist=min_dist, n_components=n_components,
-                metric='precomputed'
-            ).fit_transform(feature_distance[feature_index])
+        cluster_embedding, cluster_label, _ = partial_cluster(
+            partial=features_partial[feature_index] if features_partial else None, distance=features_distance[feature_index],
+            n_neighbours=n_neighbours, min_dist=min_dist, n_components=n_components,
+            min_cluster_size=min_cluster_size, min_samples=min_samples, cluster_selection_epsilon=cluster_selection_epsilon,
+            select_clusters=select_clusters,
+            plot_title=f'Condensed trees of Feature {feature_index + 1} {labels[feature_index] if labels is not None else ""}',
+            plot_filename=f'CondensedTrees_{feature_index + 1}.png',
+            plot_folder=folder
 
-        model = HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples,
-                        cluster_selection_epsilon=cluster_selection_epsilon
-                        ).fit(clusterable_embedding)
+        )
 
         # Record feature label result
-        feature_cluster_label.append(model.labels_)
-        feature_embedding.append(standard_embedding)
+        features_cluster_label.append(cluster_label)
+        features_embedding.append(cluster_embedding)
 
-        # Plot cluster tree
-        model.condensed_tree_.plot(select_clusters=select_clusters)
-        plt.title(
-            f'Condensed trees of Feature {feature_index + 1} {labels[feature_index] if labels is not None else ""}'
-        )
-        plt.savefig(folder_ / f'CondensedTrees_{feature_index + 1}.png')
-        plt.clf()
+    features_cluster_label = np.array(features_cluster_label)
+    features_embedding = np.array(features_embedding)
 
-    feature_cluster_label = np.array(feature_cluster_label)
-    feature_embedding = np.array(feature_embedding)
-
-    return feature_embedding, feature_cluster_label, cluster_embedding, cluster_label
+    return features_embedding, features_cluster_label, cluster_embedding, cluster_label
 
 
 def choose_cluster_typical(embedding, cluster_vector):
@@ -550,7 +642,7 @@ def choose_cluster_typical(embedding, cluster_vector):
 
 def embedding_plot(
         embedding, cluster, temporal_vector,
-        title, filename, folder_=folder
+        title, filename, folder_=default_folder
 ):
     """
     2D Embedding plot colored by cluster.
@@ -598,6 +690,8 @@ def embedding_plot(
     fig.update_layout(
         title=title,
         legend_title="clusters",
+        template="seaborn",
+        font_family="Times New Roman"
     )
 
     fig.update_xaxes(
@@ -616,12 +710,53 @@ def embedding_plot(
     return fig
 
 
+def compass_plot(
+        cluster_fig, partial_fig, embedding_fig,
+        plot_filename="SPPDP_Compass.html", plot_folder=default_folder
+):
+    """
+    Subplots of 2 rows and 2 columns.
+    [cluster plot, partial plot  ]
+    [cluster plot, embedding plot]
+
+    """
+
+    fig = make_subplots(
+        cols=2, rows=2,
+        column_widths=[0.5, 0.5], row_heights=[0.6, 0.4],
+        horizontal_spacing=0.02, vertical_spacing=0.05,
+        specs=[
+            [{'rowspan': 2, "type": "scene"}, {"type": "scene"}],
+            [None, {"type": "xy"}]
+        ],
+        subplot_titles=(
+            cluster_fig.layout.title.text,
+            partial_fig.layout.title.text,
+            embedding_fig.layout.title.text)
+    )
+
+    fig.add_traces(cluster_fig.data, rows=1, cols=1)
+    fig.add_traces(partial_fig.data, rows=1, cols=2)
+    fig.add_traces(embedding_fig.data, rows=2, cols=2)
+
+    fig.update_layout(cluster_fig.layout)
+    fig.update_scenes(cluster_fig.layout.scene, row=1, col=1)
+    fig.update_scenes(partial_fig.layout.scene, row=1, col=2)
+    fig.update_xaxes(embedding_fig.layout.xaxis, row=2, col=2)
+    fig.update_yaxes(embedding_fig.layout.yaxis, row=2, col=2)
+    fig.update_layout(title_text='SPPDP Compass')
+
+    fig.write_html(plot_folder / plot_filename)
+
+    return fig
+
+
 def partial_compound_plot(
         geo_vector, temporal_vector, feature_partial,
         feature_embedding, feature_cluster_label,
         cluster_embedding, cluster_label,
         sample_size=None,
-        labels=None, folder_=folder,
+        labels=None, folder=default_folder,
 ):
     """
     Subplots of 2 rows and 2 columns.
@@ -640,7 +775,7 @@ def partial_compound_plot(
         cluster_label (): Shape(N,)
         sample_size ():
         labels (): Shape(Feature)
-        folder_ ():
+        folder ():
 
 
     Returns:
@@ -652,92 +787,52 @@ def partial_compound_plot(
     feature_count = len(feature_partial)
 
     # Each feature clusters.
-    partial_plot_list = partial_plot_3d(
+    partial_fig_list = partial_plot_3d(
         feature_partial, temporal_vector, feature_cluster_label,
-        sample_size=sample_size, labels=labels, folder_=folder_
+        sample_size=sample_size, labels=labels, folder=folder
     )
 
     # Whole features cluster.
     partial_plot_integrated_list = partial_plot_3d(
         feature_partial, temporal_vector, cluster_label,
-        sample_size=sample_size, labels=labels, folder_=folder_
+        sample_size=sample_size, labels=labels, folder=folder
     )
     embedding_integrated_plot = embedding_plot(
         cluster_embedding, cluster_label, temporal_vector,
         f'Low dimension embedding of total features',
-        f'UMAP_Integrated', folder_=folder_
+        f'UMAP_Merged', folder_=folder
     )
     cluster_integrated_plot = scatter_3d(
         geo_vector, temporal_vector, cluster_label,
-        f'Integrated Spatio-temporal Cluster Plot', 'Cluster Label',
-        filename=f'Cluster_Integrated', is_cluster=True, folder_=folder_)
+        f'Merged Spatio-temporal Cluster Plot', 'Cluster Label',
+        filename=f'Cluster_Merged', is_cluster=True, folder=folder)
 
+    cluster_fig_list = []
+    embedding_fig_list = []
     for feature_index in range(feature_count):
         embedding_fig = embedding_plot(
             feature_embedding[feature_index], feature_cluster_label[feature_index], temporal_vector,
             f'Low dimension embedding of Feature {feature_index + 1} {labels[feature_index] if labels is not None else ""}',
-            f'UMAP_{feature_index + 1}', folder_=folder_
+            f'UMAP_{feature_index + 1}', folder_=folder
         )
+        embedding_fig_list.append(embedding_fig)
 
         # Plot the single feature cluster result
         cluster_plot = scatter_3d(
             geo_vector, temporal_vector, feature_cluster_label[feature_index],
             f'Spatio-temporal Cluster Plot of Feature {feature_index + 1} {labels[feature_index] if labels is not None else ""}',
             'Cluster Label',
-            filename=f'Cluster_{feature_index + 1}', is_cluster=True, folder_=folder_)
+            filename=f'Cluster_{feature_index + 1}', is_cluster=True, folder=folder)
+        cluster_fig_list.append(cluster_plot)
 
-        fig = make_subplots(
-            cols=2, rows=2,
-            column_widths=[0.5, 0.5], row_heights=[0.6, 0.4],
-            horizontal_spacing=0.02, vertical_spacing=0.05,
-            specs=[
-                [{'rowspan': 2, "type": "scene"}, {"type": "scene"}],
-                [None, {"type": "xy"}]
-            ],
-            subplot_titles=(
-                cluster_plot.layout.title.text,
-                partial_plot_list[feature_index].layout.title.text,
-                embedding_fig.layout.title.text)
+        compass_plot(
+            cluster_plot, partial_fig_list[feature_index], embedding_fig,
+            plot_filename=f'SPPDP_Compass_{feature_index + 1}.html', plot_folder=folder
         )
 
-        fig.add_traces(cluster_plot.data, rows=1, cols=1)
-        fig.add_traces(partial_plot_list[feature_index].data, rows=1, cols=2)
-        fig.add_traces(embedding_fig.data, rows=2, cols=2)
-
-        fig.update_layout(cluster_plot.layout)
-        fig.update_scenes(cluster_plot.layout.scene, row=1, col=1)
-        fig.update_scenes(partial_plot_list[feature_index].layout.scene, row=1, col=2)
-        fig.update_xaxes(embedding_fig.layout.xaxis, row=2, col=2)
-        fig.update_yaxes(embedding_fig.layout.yaxis, row=2, col=2)
-        fig.update_layout(title_text='Partial Compound Plot')
-
-        fig.write_html(folder_ / f'PartialCompound_{feature_index + 1}.html')
-
-        fig_integrated = make_subplots(
-            cols=2, rows=2,
-            column_widths=[0.5, 0.5], row_heights=[0.6, 0.4],
-            horizontal_spacing=0.02, vertical_spacing=0.05,
-            specs=[
-                [{'rowspan': 2, "type": "scene"}, {"type": "scene"}],
-                [None, {"type": "xy"}]
-            ],
-            subplot_titles=(
-                cluster_integrated_plot.layout.title.text,
-                partial_plot_integrated_list[feature_index].layout.title.text,
-                embedding_integrated_plot.layout.title.text)
+        compass_plot(
+            cluster_integrated_plot, partial_plot_integrated_list[feature_index], embedding_integrated_plot,
+            plot_filename=f'SPPDP_Merged_Compass_{feature_index + 1}.html', plot_folder=folder
         )
 
-        fig_integrated.add_traces(cluster_integrated_plot.data, rows=1, cols=1)
-        fig_integrated.add_traces(partial_plot_integrated_list[feature_index].data, rows=1, cols=2)
-        fig_integrated.add_traces(embedding_integrated_plot.data, rows=2, cols=2)
-
-        fig_integrated.update_layout(cluster_integrated_plot.layout)
-        fig_integrated.update_scenes(cluster_integrated_plot.layout.scene, row=1, col=1)
-        fig_integrated.update_scenes(partial_plot_integrated_list[feature_index].layout.scene, row=1, col=2)
-        fig_integrated.update_xaxes(embedding_fig.layout.xaxis, row=2, col=2)
-        fig_integrated.update_yaxes(embedding_fig.layout.yaxis, row=2, col=2)
-        fig_integrated.update_layout(title_text='Partial Compound Plot')
-
-        fig_integrated.write_html(folder_ / f'PartialCompound_Integrated_{feature_index + 1}.html')
-
-    return
+    return cluster_fig_list, partial_fig_list, embedding_fig_list
