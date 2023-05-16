@@ -1,7 +1,7 @@
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from georegression.test.data import load_HP
-from georegression.visualize.pd import select_partial
+from georegression.visualize.pd import select_partials
 from georegression.weight_model import WeightModel
 
 

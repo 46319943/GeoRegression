@@ -5,8 +5,8 @@ from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 
 from georegression.test.data import load_HP
-from georegression.visualize.pd import select_partial, partial_plot_3d, features_partial_cluster, partial_plot_2d, \
-    partial_compound_plot, choose_cluster_typical
+from georegression.visualize.pd import partials_plot_3d, features_partial_cluster, partial_plot_2d, \
+    partial_compound_plot, choose_cluster_typical, sample_partial
 from georegression.weight_model import WeightModel
 
 X, y, xy_vector, time = load_HP()
@@ -66,8 +66,8 @@ class TestCalculations(unittest.TestCase):
         model = self.model
         feature_embedding, feature_cluster_label, cluster_embedding, cluster_label = self.partial_cluster_result
 
-        partial_plot_3d(
-            model.feature_partial_, model.coordinate_vector_list[1], cluster_vector=feature_cluster_label,
+        partials_plot_3d(
+            model.feature_partial_, model.coordinate_vector_list[1], cluster_labels=feature_cluster_label,
             # quantile=[0, 0.2, 0.8, 1],
         )
 
@@ -75,13 +75,13 @@ class TestCalculations(unittest.TestCase):
         feature_distance, feature_cluster_label, distance_matrix, cluster_label = features_partial_cluster(
             xy_vector[:100], time[:100], model.feature_ice_
         )
-        partial_plot_3d(
-            model.feature_ice_, model.coordinate_vector_list[1], cluster_vector=cluster_label,
+        partials_plot_3d(
+            model.feature_ice_, model.coordinate_vector_list[1], cluster_labels=cluster_label,
             # quantile=[0, 0.2, 0.8, 1],
             is_ICE=True
         )
 
 
 if __name__ == '__main__':
-    TestCalculations().test_pd_2d_plot()
+    # TestCalculations().test_pd_2d_plot()
     pass

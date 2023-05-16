@@ -12,8 +12,7 @@ from scipy.cluster.hierarchy import dendrogram
 from scipy.spatial.distance import cdist, pdist, squareform
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.inspection import PartialDependenceDisplay
-from hdbscan import HDBSCAN
-from umap import UMAP
+
 import plotly.graph_objects as go
 import plotly.express as px
 
@@ -25,25 +24,29 @@ from georegression.visualize.utils import vector_to_color, range_margin
 from georegression.visualize import default_folder
 
 
-def select_partial(feature_partial, sample_size=None, quantile=None):
+def sample_partial(partial, sample_size=None, quantile=None, cluster_label=None, random_state=1003):
     """
+    Use random sample or quantile/percentile to get the subset of partial data.
 
     Args:
-        feature_partial (np.ndarray): Shape(Feature, N, 2)
+        partial (np.ndarray): Shape(N, 2)
         sample_size (): Int for specific count. Float for rate.
         quantile ():
+        random_state:
 
-    Returns: Selection indices. Bool array with shape(Feature, N)
+    Returns:
 
     """
+    # Set random state
+    if random_state is not None:
+        np.random.seed(random_state)
 
-    N = feature_partial.shape[1]
-    feature_count = feature_partial.shape[0]
+    N = partial.shape[0]
 
     if sample_size is None and quantile is None:
-        raise Exception('Both selection parameter is None.')
+        raise Exception('No selection method is chosen.')
     if sample_size is not None and quantile is not None:
-        raise Exception('Choose one selection parameter.')
+        raise Exception('Only one selection method is allowed.')
 
     # Select by sample
     if sample_size is not None:
@@ -51,27 +54,52 @@ def select_partial(feature_partial, sample_size=None, quantile=None):
         if isinstance(sample_size, float):
             sample_size = int(sample_size * N)
 
-        # random state?
-        sample_indices = np.random.choice(N, sample_size, replace=False)
+        # Ensure at least one sample for each cluster.
+        if cluster_label is not None:
+            # Sample size is proportional to cluster size. bincount cannot handle negative values (-1 for un-clustered label).
+            cluster_values, cluster_sizes = np.unique(cluster_label, return_counts=True)
+            cluster_sample_sizes = np.floor(cluster_sizes * sample_size / N).astype(int)
+            # Ensure at least one sample for each cluster. Sample size is no larger than cluster size.
+            cluster_sample_sizes = np.clip(cluster_sample_sizes, 1, cluster_sizes)
 
-        selection_matrix = np.zeros(N, dtype=bool)
-        selection_matrix[sample_indices] = True
-        selection_matrix = np.tile(selection_matrix, (feature_count, 1))
-        return selection_matrix
+            cluster_sample_indices = []
+            for cluster_value, cluster_sample_size in zip(cluster_values, cluster_sample_sizes):
+                cluster_sample_indices.append(
+                    np.random.choice(np.where(cluster_label == cluster_value)[0], cluster_sample_size, replace=False))
+            sample_indices = np.concatenate(cluster_sample_indices)
+        else:
+            sample_indices = np.random.choice(N, sample_size, replace=False)
+
+        return sample_indices
 
     # Select by quantile
     if quantile is not None:
         def inner_average(x):
+            # TODO: Use weighted average.
             return np.average(x)
 
         v_inner_average = np.vectorize(inner_average)
-        feature_y_average = v_inner_average(feature_partial[:, :, 1])
-        quantile_value = np.quantile(feature_y_average, quantile, axis=1, interpolation='nearest').transpose()
-        # TODO: Bug fix. When have the same value, multiple value will be selected.
-        selection_matrix = np.isin(feature_y_average, quantile_value)
-        # To get indices, one can use where/nonzero or argwhere after isin.
+        feature_y_average = v_inner_average(partial[:, 1])
+        quantile_values = np.quantile(feature_y_average, quantile, interpolation='nearest')
 
-        return selection_matrix
+        quantile_indices = []
+        for quantile_value in quantile_values:
+            # Select the index of value where they first appear.
+            quantile_index = np.where(feature_y_average == quantile_value)[0][0]
+            quantile_indices.append(quantile_index)
+
+        return quantile_indices
+
+
+def sample_suffix(sample_size=None, quantile=None):
+    if sample_size is not None:
+        suffix = f'_Sample{sample_size}'
+    elif quantile is not None:
+        suffix = '_Q' + ';'.join(map(str, quantile))
+    else:
+        suffix = ''
+
+    return suffix
 
 
 def partial_plot_2d(
@@ -227,20 +255,128 @@ def partial_plot_2d(
 
 
 def partial_plot_3d(
-        feature_partial, temporal_vector, cluster_vector=None,
-        sample_size=None, quantile=None, is_ICE=False, labels=None, folder=default_folder
+        partial, temporal, cluster_label=None,
+        sample_size=None, quantile=None,
+        feature_name=None
+):
+    sample_indices = sample_partial(partial, sample_size, quantile, cluster_label)
+    local_count = len(sample_indices)
+
+    # Generate index label
+    index_label = np.arange(len(partial))
+    index_label = index_label[sample_indices]
+
+    # Select partial, temporal and cluster.
+    partial = partial[sample_indices]
+    temporal = temporal[sample_indices]
+    if cluster_label is not None:
+        cluster_label = cluster_label[sample_indices]
+
+    # Trace name and show_legend control
+    if cluster_label is not None:
+        colors = vector_to_color(cluster_label)
+
+        def inner_naming(label):
+            return f'Cluster {label}'
+
+        v_naming = np.vectorize(inner_naming)
+        names = v_naming(cluster_label)
+
+        def inner_unique(label):
+            _, first_index = np.unique(label, return_index=True)
+            first_vector = np.zeros_like(label, dtype=bool)
+            first_vector[first_index] = True
+            return first_vector
+
+        show_vector = np.apply_along_axis(inner_unique, -1, cluster_label)
+
+    else:
+        colors = vector_to_color(temporal)
+        names = np.empty_like(temporal, dtype=object)
+        show_vector = np.zeros_like(temporal, dtype=bool)
+
+    # Each local corresponds to each trace
+    trace_list = []
+    for local_index in range(local_count):
+        x = partial[local_index, 0]
+        y = partial[local_index, 1]
+        trace = go.Scatter3d(
+            y=x, z=y,
+            x=np.tile(temporal[local_index], len(x)),
+            text=y,
+            mode='lines',
+            line=dict(
+                # Receive Color String
+                color=colors[local_index],
+                width=2,
+            ),
+            name=names[local_index],
+            legendgroup=names[local_index],
+            showlegend=bool(show_vector[local_index]),
+            hovertemplate=
+            '<b>X Value</b>: %{y} <br />' +
+            '<b>Time Slice</b>: %{x}  <br />' +
+            f'<b>Index</b>: {index_label[local_index]}  <br />' +
+            '<b>Partial Value</b>: %{z}  <br />'
+
+        )
+        trace_list.append(trace)
+
+    fig = go.Figure(data=trace_list)
+    if feature_name:
+        title = f'SPPDP of Feature {feature_name}'
+    else:
+        title = 'SPPDP'
+
+    fig.update_layout(
+        title={
+            'text': title,
+            'xanchor': 'center',
+            'x': 0.45,
+            'yanchor': 'top',
+            'y': 0.99,
+        },
+        margin=dict(l=0, r=0, t=50, b=0, pad=0),
+        legend_title="Cluster Legend",
+        font=dict(
+            size=12,
+        ),
+        template="seaborn",
+        font_family="Times New Roman"
+    )
+
+    # Fix range while toggling trace.
+    y_max = np.max([np.max(y) for y in partial[:, 1]])
+    y_min = np.min([np.min(y) for y in partial[:, 1]])
+
+    x_max = np.max([np.max(x) for x in partial[:, 0]])
+    x_min = np.min([np.min(x) for x in partial[:, 0]])
+
+    fig.update_scenes(
+        xaxis_title='Time Slice',
+        xaxis_range=range_margin(vector=temporal),
+        yaxis_title='Independent / X value',
+        yaxis_range=range_margin(value_min=x_min, value_max=x_max),
+        zaxis_title='Dependent / Partial Value',
+        zaxis_range=range_margin(value_min=y_min, value_max=y_max),
+    )
+
+    return fig
+
+
+def partials_plot_3d(
+        feature_partial, temporal, cluster_labels=None,
+        sample_size=None, quantile=None, feature_names=None
 ):
     """
 
     Args:
         feature_partial ():
-        temporal_vector ():
-        cluster_vector (): Shape(N,) or Shape(Feature, N)
+        temporal ():
+        cluster_labels (): Shape(N,) or Shape(Feature, N)
         sample_size ():
         quantile ():
-        is_ICE ():
-        labels ():
-        folder ():
+        feature_names ():
 
     Returns:
 
@@ -248,127 +384,24 @@ def partial_plot_3d(
 
     feature_count = len(feature_partial)
 
-    # Tile
-    temporal_vector = np.tile(temporal_vector.reshape(1, -1), (feature_count, 1))
-    index_label = np.tile(np.arange(len(feature_partial[0])).reshape(1, -1), (feature_count, 1))
-
     # Feature cluster or Integrated cluster.
-    is_integrated = False
-    if cluster_vector is not None:
+    if cluster_labels is not None:
         # If Shape(N,). Else Shape(Feature, N).
-        if len(cluster_vector.shape) == 1:
-            is_integrated = True
-            cluster_vector = np.tile(cluster_vector.reshape(1, -1), (feature_count, 1))
-
-    # Do selection
-    if sample_size is not None or quantile is not None:
-        selection_matrix = select_partial(feature_partial, sample_size, quantile)
-        # Order matters
-        feature_partial = feature_partial[selection_matrix].reshape(feature_count, -1, 2)
-        temporal_vector = temporal_vector[selection_matrix].reshape(feature_count, -1)
-        index_label = index_label[selection_matrix].reshape(feature_count, -1)
-        if cluster_vector is not None:
-            cluster_vector = cluster_vector[selection_matrix].reshape(feature_count, -1)
-
-    local_count = len(feature_partial[0])
-
-    # Trace name and show_legend control
-    if cluster_vector is not None:
-        color_vector = vector_to_color(cluster_vector)
-
-        def inner_naming(cluster_label):
-            return f'Cluster {cluster_label}'
-
-        v_naming = np.vectorize(inner_naming)
-        name_vector = v_naming(cluster_vector)
-
-        def inner_unique(cluster_label):
-            _, first_index = np.unique(cluster_label, return_index=True)
-            first_vector = np.zeros_like(cluster_label, dtype=bool)
-            first_vector[first_index] = True
-            return first_vector
-
-        show_vector = np.apply_along_axis(inner_unique, -1, cluster_vector)
-
-    else:
-        color_vector = vector_to_color(temporal_vector)
-        name_vector = np.empty_like(temporal_vector, dtype=object)
-        show_vector = np.zeros_like(temporal_vector, dtype=bool)
+        if len(cluster_labels.shape) == 1:
+            cluster_labels = np.tile(cluster_labels.reshape(1, -1), (feature_count, 1))
 
     # Iterate each feature
     fig_list = []
     for feature_index in range(feature_count):
-
-        # Each local corresponds to each trace
-        trace_list = []
-        for local_index in range(local_count):
-            x = feature_partial[feature_index, local_index, 0]
-            y = feature_partial[feature_index, local_index, 1]
-            trace = go.Scatter3d(
-                y=x, z=y,
-                x=np.tile(temporal_vector[feature_index, local_index], len(x)),
-                text=y,
-                mode='lines',
-                line=dict(
-                    # Receive Color String
-                    color=color_vector[feature_index, local_index],
-                    width=2,
-                ),
-                name=name_vector[feature_index, local_index],
-                legendgroup=name_vector[feature_index, local_index],
-                showlegend=bool(show_vector[feature_index, local_index]),
-                hovertemplate=
-                '<b>X Value</b>: %{y} <br />' +
-                '<b>Time Slice</b>: %{x}  <br />' +
-                f'<b>Index</b>: {index_label[feature_index, local_index]}  <br />' +
-                '<b>Partial Value</b>: %{z}  <br />'
-
-            )
-            trace_list.append(trace)
-
-        fig = go.Figure(data=trace_list)
-        fig.update_layout(
-            title={
-                'text': f"SPPDP of Feature {feature_index + 1} {labels[feature_index] if labels is not None else ''}",
-                'xanchor': 'center',
-                'x': 0.45,
-                'yanchor': 'top',
-                'y': 0.99,
-            },
-            margin=dict(l=0, r=0, t=50, b=0, pad=0),
-            legend_title="Cluster Legend",
-            font=dict(
-                size=12,
-            ),
-            template="seaborn",
-            font_family="Times New Roman"
+        fig = partial_plot_3d(
+            partial=feature_partial[feature_index],
+            temporal=temporal,
+            cluster_label=cluster_labels[feature_index] if cluster_labels is not None else None,
+            sample_size=sample_size,
+            quantile=quantile,
+            feature_name=feature_names[feature_index] if feature_names is not None else None,
         )
 
-        # Fix range while toggling trace.
-        y_max = np.max([np.max(y) for y in feature_partial[feature_index, :, 1]])
-        y_min = np.min([np.min(y) for y in feature_partial[feature_index, :, 1]])
-
-        x_max = np.max([np.max(x) for x in feature_partial[feature_index, :, 0]])
-        x_min = np.min([np.min(x) for x in feature_partial[feature_index, :, 0]])
-
-        fig.update_scenes(
-            xaxis_title='Time Slice',
-            xaxis_range=range_margin(vector=temporal_vector),
-            yaxis_title='Independent / X value',
-            yaxis_range=range_margin(value_min=x_min, value_max=x_max),
-            zaxis_title='Dependent / Partial Value',
-            zaxis_range=range_margin(value_min=y_min, value_max=y_max),
-        )
-
-        if sample_size is not None:
-            suffix = f'_Sample{sample_size}'
-        elif quantile is not None:
-            suffix = '_Q' + ';'.join(map(str, quantile))
-        else:
-            suffix = ''
-
-        fig.write_html(
-            folder / f'SP{"PDP" if not is_ICE else "ICE"}{"_Merged" if is_integrated else ""}_{feature_index + 1}{suffix}.html')
         fig_list.append(fig)
 
     return fig_list
@@ -466,7 +499,7 @@ def partial_cluster(
         n_neighbours=5, min_dist=0.1, n_components=2,
         min_cluster_size=10, min_samples=3, cluster_selection_epsilon=1,
 
-        select_clusters=False,
+        plot=False, select_clusters=False,
         plot_title=None, plot_filename=None, plot_folder=default_folder,
 ):
     """
@@ -490,6 +523,9 @@ def partial_cluster(
     Returns:
 
     """
+
+    from hdbscan import HDBSCAN
+    from umap import UMAP
 
     if plot_title is None:
         plot_title = f'Condensed trees'
@@ -522,10 +558,11 @@ def partial_cluster(
                     cluster_selection_epsilon=cluster_selection_epsilon
                     ).fit(clusterable_embedding)
 
-    model.condensed_tree_.plot(select_clusters=select_clusters)
-    plt.title(plot_title)
-    plt.savefig(plot_folder / plot_filename)
-    plt.clf()
+    if plot:
+        model.condensed_tree_.plot(select_clusters=select_clusters)
+        plt.title(plot_title)
+        plt.savefig(plot_folder / plot_filename)
+        plt.clf()
 
     return standard_embedding, model.labels_, distance
 
@@ -641,8 +678,7 @@ def choose_cluster_typical(embedding, cluster_vector):
 
 
 def embedding_plot(
-        embedding, cluster, temporal_vector,
-        title, filename, folder_=default_folder
+        embedding, cluster, temporal_vector, feature_name
 ):
     """
     2D Embedding plot colored by cluster.
@@ -651,9 +687,9 @@ def embedding_plot(
         embedding (np.ndarray): Shape(N, 2)
         cluster (): Shape(N,)
         temporal_vector (): Shape(N,)
-        title ():
+        feature_name ():
         filename ():
-        folder_ ():
+        folder ():
 
     Returns:
 
@@ -687,6 +723,10 @@ def embedding_plot(
             )
         )
 
+    title = f'Low dimension embedding'
+    if feature_name:
+        title += f' of {feature_name}'
+
     fig.update_layout(
         title=title,
         legend_title="clusters",
@@ -705,14 +745,11 @@ def embedding_plot(
         scaleratio=1,
     )
 
-    fig.write_html(folder_ / f'{filename}.html')
-
     return fig
 
 
 def compass_plot(
         cluster_fig, partial_fig, embedding_fig,
-        plot_filename="SPPDP_Compass.html", plot_folder=default_folder
 ):
     """
     Subplots of 2 rows and 2 columns.
@@ -746,17 +783,14 @@ def compass_plot(
     fig.update_yaxes(embedding_fig.layout.yaxis, row=2, col=2)
     fig.update_layout(title_text='SPPDP Compass')
 
-    fig.write_html(plot_folder / plot_filename)
-
     return fig
 
 
 def partial_compound_plot(
         geo_vector, temporal_vector, feature_partial,
-        feature_embedding, feature_cluster_label,
-        cluster_embedding, cluster_label,
-        sample_size=None,
-        labels=None, folder=default_folder,
+        embedding, cluster_label,
+        sample_size=None, quantile=None,
+        feature_names=None, folder=default_folder,
 ):
     """
     Subplots of 2 rows and 2 columns.
@@ -769,12 +803,11 @@ def partial_compound_plot(
         geo_vector ():
         temporal_vector ():
         feature_partial (): Shape(Feature, N, 2)
-        feature_embedding (): Shape(Feature, N, 2)
-        feature_cluster_label (): Shape(Feature, N)
-        cluster_embedding (): Shape(N, 2)
-        cluster_label (): Shape(N,)
+        embedding (): Shape(Feature, N, 2) for individual cluster, Shape(N, 2) for merged cluster.
+        cluster_label (): Shape(Feature, N) for individual cluster, Shape(N,) for merged cluster.
         sample_size ():
-        labels (): Shape(Feature)
+        quantile:
+        feature_names (): Shape(Feature)
         folder ():
 
 
@@ -786,53 +819,50 @@ def partial_compound_plot(
 
     feature_count = len(feature_partial)
 
-    # Each feature clusters.
-    partial_fig_list = partial_plot_3d(
-        feature_partial, temporal_vector, feature_cluster_label,
-        sample_size=sample_size, labels=labels, folder=folder
-    )
-
-    # Whole features cluster.
-    partial_plot_integrated_list = partial_plot_3d(
+    partial_figs = partials_plot_3d(
         feature_partial, temporal_vector, cluster_label,
-        sample_size=sample_size, labels=labels, folder=folder
+        sample_size=sample_size, quantile=quantile, feature_names=feature_names
     )
-    embedding_integrated_plot = embedding_plot(
-        cluster_embedding, cluster_label, temporal_vector,
-        f'Low dimension embedding of total features',
-        f'UMAP_Merged', folder_=folder
-    )
-    cluster_integrated_plot = scatter_3d(
-        geo_vector, temporal_vector, cluster_label,
-        f'Merged Spatio-temporal Cluster Plot', 'Cluster Label',
-        filename=f'Cluster_Merged', is_cluster=True, folder=folder)
 
-    cluster_fig_list = []
-    embedding_fig_list = []
-    for feature_index in range(feature_count):
+    if len(embedding.shape) == 2 and len(cluster_label.shape) == 1:
         embedding_fig = embedding_plot(
-            feature_embedding[feature_index], feature_cluster_label[feature_index], temporal_vector,
-            f'Low dimension embedding of Feature {feature_index + 1} {labels[feature_index] if labels is not None else ""}',
-            f'UMAP_{feature_index + 1}', folder_=folder
+            embedding, cluster_label, temporal_vector,
+            f'total features',
         )
-        embedding_fig_list.append(embedding_fig)
+        embedding_figs = [embedding_fig for _ in range(feature_count)]
 
-        # Plot the single feature cluster result
-        cluster_plot = scatter_3d(
-            geo_vector, temporal_vector, feature_cluster_label[feature_index],
-            f'Spatio-temporal Cluster Plot of Feature {feature_index + 1} {labels[feature_index] if labels is not None else ""}',
-            'Cluster Label',
-            filename=f'Cluster_{feature_index + 1}', is_cluster=True, folder=folder)
-        cluster_fig_list.append(cluster_plot)
+        cluster_fig = scatter_3d(
+            geo_vector, temporal_vector, cluster_label,
+            f'Merged Spatio-temporal Cluster Plot', 'Cluster Label',
+            filename=f'Cluster_Merged', is_cluster=True, folder=folder)
+        cluster_figs = [cluster_fig for _ in range(feature_count)]
+    else:
+        embedding_figs = [
+            embedding_plot(
+                embedding[feature_index], cluster_label[feature_index], temporal_vector,
+                f'Feature {feature_index + 1} {feature_names[feature_index] if feature_names is not None else ""}',
+            )
+            for feature_index in range(feature_count)
+        ]
 
+        cluster_figs = [
+            scatter_3d(
+                geo_vector, temporal_vector, cluster_label[feature_index],
+                f'Spatio-temporal Cluster Plot of Feature {feature_index + 1} {feature_names[feature_index] if feature_names is not None else ""}',
+                'Cluster Label',
+                filename=f'Cluster_{feature_index + 1}', is_cluster=True, folder=folder)
+            for feature_index in range(feature_count)
+        ]
+
+    compass_figs = [
         compass_plot(
-            cluster_plot, partial_fig_list[feature_index], embedding_fig,
-            plot_filename=f'SPPDP_Compass_{feature_index + 1}.html', plot_folder=folder
+            cluster_figs[feature_index], partial_figs[feature_index], embedding_figs[feature_index],
         )
+        for feature_index in range(feature_count)
+    ]
 
-        compass_plot(
-            cluster_integrated_plot, partial_plot_integrated_list[feature_index], embedding_integrated_plot,
-            plot_filename=f'SPPDP_Merged_Compass_{feature_index + 1}.html', plot_folder=folder
-        )
+    return partial_figs, embedding_figs, cluster_figs, compass_figs
 
-    return cluster_fig_list, partial_fig_list, embedding_fig_list
+
+if __name__ == '__main__':
+    sample_partial()
