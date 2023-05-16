@@ -1,87 +1,45 @@
-import unittest
-
-import numpy as np
-from sklearn.linear_model import LinearRegression
-from sklearn.ensemble import RandomForestRegressor
-
 from georegression.test.data import load_HP
+from georegression.test.visualize import get_toy_model
 from georegression.visualize.pd import partials_plot_3d, features_partial_cluster, partial_plot_2d, \
-    partial_compound_plot, choose_cluster_typical, sample_partial
-from georegression.weight_model import WeightModel
+    partial_compound_plot, choose_cluster_typical
+
+model = get_toy_model()
+features_embedding, features_cluster_label, _ = features_partial_cluster(model.feature_partial_)
 
 X, y, xy_vector, time = load_HP()
 
 
-class TestCalculations(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        model = WeightModel(
-            # LinearRegression(),
-            RandomForestRegressor(),
-            distance_measure='euclidean',
-            kernel_type='bisquare',
-            neighbour_count=0.5,
+def test_compound_plot():
+    partial_figs, embedding_figs, cluster_figs, compass_figs = partial_compound_plot(
+        xy_vector[:100], time[:100], model.feature_partial_,
+        features_embedding, features_cluster_label,
+    )
 
-            cache_data=True, cache_estimator=True
-        )
 
-        model.fit(X[:100, :10], y[:100], [xy_vector[:100], time[:100]])
-        model.partial_dependence()
+def test_pd_2d_plot():
+    # cluster_typical = choose_cluster_typical(cluster_embedding, cluster_label)
+    # partial_plot_2d(
+    #     model.feature_partial_, cluster_label, cluster_typical,
+    #     alpha_range=[0.1, 1], width_range=[0.5, 3], scale_power=1.5
+    # )
 
-        cls.model = model
+    cluster_typical = [
+        choose_cluster_typical(embedding, cluster)
+        for embedding, cluster in zip(features_embedding, features_cluster_label)
+    ]
+    partial_plot_2d(
+        model.feature_partial_, features_cluster_label, cluster_typical,
+        alpha_range=[0.3, 1], width_range=[0.5, 3], scale_power=1.5
+    )
 
-        cls.partial_cluster_result = features_partial_cluster(
-            model.feature_partial_)
 
-    def test_compound_plot(self):
-        model = self.model
-        feature_embedding, feature_cluster_label, cluster_embedding, cluster_label = self.partial_cluster_result
-
-        partial_compound_plot(
-            xy_vector[:100], time[:100], model.feature_partial_,
-            feature_embedding, feature_cluster_label,
-            cluster_embedding, cluster_label
-        )
-
-    def test_pd_2d_plot(self):
-        model = self.model
-        feature_embedding, feature_cluster_label, cluster_embedding, cluster_label = self.partial_cluster_result
-
-        # cluster_typical = choose_cluster_typical(cluster_embedding, cluster_label)
-        # partial_plot_2d(
-        #     model.feature_partial_, cluster_label, cluster_typical,
-        #     alpha_range=[0.1, 1], width_range=[0.5, 3], scale_power=1.5
-        # )
-
-        cluster_typical = [
-            choose_cluster_typical(embedding, cluster)
-            for embedding, cluster in zip(feature_embedding, feature_cluster_label)
-        ]
-        partial_plot_2d(
-            model.feature_partial_, feature_cluster_label, cluster_typical,
-            alpha_range=[0.3, 1], width_range=[0.5, 3], scale_power=1.5
-        )
-
-    def test_pd_3d_plot(self):
-        model = self.model
-        feature_embedding, feature_cluster_label, cluster_embedding, cluster_label = self.partial_cluster_result
-
-        partials_plot_3d(
-            model.feature_partial_, model.coordinate_vector_list[1], cluster_labels=feature_cluster_label,
-            # quantile=[0, 0.2, 0.8, 1],
-        )
-
-        model.local_ICE()
-        feature_distance, feature_cluster_label, distance_matrix, cluster_label = features_partial_cluster(
-            xy_vector[:100], time[:100], model.feature_ice_
-        )
-        partials_plot_3d(
-            model.feature_ice_, model.coordinate_vector_list[1], cluster_labels=cluster_label,
-            # quantile=[0, 0.2, 0.8, 1],
-            is_ICE=True
-        )
+def test_pd_3d_plot():
+    partials_plot_3d(
+        model.feature_partial_, model.coordinate_vector_list[1], cluster_labels=features_cluster_label,
+        # quantile=[0, 0.2, 0.8, 1],
+    )
 
 
 if __name__ == '__main__':
-    # TestCalculations().test_pd_2d_plot()
+    test_pd_2d_plot()
     pass

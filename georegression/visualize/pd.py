@@ -58,7 +58,7 @@ def sample_partial(partial, sample_size=None, quantile=None, cluster_label=None,
         if cluster_label is not None:
             # Sample size is proportional to cluster size. bincount cannot handle negative values (-1 for un-clustered label).
             cluster_values, cluster_sizes = np.unique(cluster_label, return_counts=True)
-            cluster_sample_sizes = np.floor(cluster_sizes * sample_size / N).astype(int)
+            cluster_sample_sizes = np.ceil(cluster_sizes * sample_size / N).astype(int)
             # Ensure at least one sample for each cluster. Sample size is no larger than cluster size.
             cluster_sample_sizes = np.clip(cluster_sample_sizes, 1, cluster_sizes)
 
@@ -227,9 +227,11 @@ def partial_plot_2d(
             )
         plt.xlabel('Independent Value')
         plt.ylabel('Partial Dependent Value')
-        plt.title(f'SPPDP of Typical Cluster in Feature {feature_index + 1}', pad=60)
+
+        # Padding according to the cluster label length.
+        plt.title(f'SPPDP of Typical Cluster in Feature {feature_index + 1}', pad=10 + 15 * math.ceil(len(inner_vector) / 5))
         plt.legend(
-            loc='upper center', bbox_to_anchor=(0.5, 1.3), ncol=5,
+            loc='lower center', bbox_to_anchor=(0.5, 1), ncol=5,
             columnspacing=0.2, fontsize='x-small', numpoints=2
         )
         fig_ind.savefig(
@@ -500,7 +502,7 @@ def partial_cluster(
         min_cluster_size=10, min_samples=3, cluster_selection_epsilon=1,
 
         plot=False, select_clusters=False,
-        plot_title=None, plot_filename=None, plot_folder=default_folder,
+        plot_title='Condensed trees', plot_filename='CondensedTrees.png', plot_folder=default_folder,
 ):
     """
     Cluster data based on partial dependence result or derived distance matrix.
@@ -516,6 +518,7 @@ def partial_cluster(
         min_samples:
         cluster_selection_epsilon:
         select_clusters:
+        plot:
         plot_filename:
         plot_title:
         plot_folder:
@@ -605,24 +608,6 @@ def features_partial_cluster(
     if features_distance is None:
         features_distance = features_partial_distance(features_partial)
 
-    # Integrated feature cluster
-
-    # Sum the distance over each feature.
-    # Shape(Feature, N, N) -> Shape(N, N).
-    distance = np.sum(features_distance, axis=0)
-    cluster_embedding, cluster_label, _ = partial_cluster(distance=distance, n_neighbours=n_neighbours * 2, min_dist=min_dist * 2,
-                                                          n_components=n_components, min_cluster_size=min_cluster_size, min_samples=min_samples,
-                                                          cluster_selection_epsilon=cluster_selection_epsilon,
-                                                          select_clusters=select_clusters,
-                                                          plot_title=f'Condensed trees of total features',
-                                                          plot_filename=f'CondensedTrees_Integrated.png',
-                                                          plot_folder=folder
-                                                          )
-
-    # Return the result if only the integrated result is required.
-    if only_integrated:
-        return cluster_embedding, cluster_label
-
     # Individual feature cluster
     feature_count = features_distance.shape[0]
 
@@ -632,7 +617,7 @@ def features_partial_cluster(
     features_cluster_label = []
     for feature_index in range(feature_count):
         cluster_embedding, cluster_label, _ = partial_cluster(
-            partial=features_partial[feature_index] if features_partial else None, distance=features_distance[feature_index],
+            distance=features_distance[feature_index],
             n_neighbours=n_neighbours, min_dist=min_dist, n_components=n_components,
             min_cluster_size=min_cluster_size, min_samples=min_samples, cluster_selection_epsilon=cluster_selection_epsilon,
             select_clusters=select_clusters,
@@ -649,7 +634,7 @@ def features_partial_cluster(
     features_cluster_label = np.array(features_cluster_label)
     features_embedding = np.array(features_embedding)
 
-    return features_embedding, features_cluster_label, cluster_embedding, cluster_label
+    return features_embedding, features_cluster_label, features_distance
 
 
 def choose_cluster_typical(embedding, cluster_vector):
@@ -662,7 +647,7 @@ def choose_cluster_typical(embedding, cluster_vector):
         embedding ():
         cluster_vector ():
 
-    Returns:
+    Returns: List of index of typical items. The length of the list is the number of clusters.
 
     """
     cluster_typical_list = []
