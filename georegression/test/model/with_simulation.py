@@ -4,8 +4,7 @@ from sklearn.ensemble import RandomForestRegressor
 from georegression.test.data.simulation import generate_sample
 from georegression.weight_model import WeightModel
 
-X, y, points, coef1, coef2 = generate_sample()
-X = X.reshape(-1, 1)
+X, y, points, coefficients = generate_sample(42)
 
 
 def main():
@@ -13,7 +12,7 @@ def main():
         LinearRegression(),
         distance_measure='euclidean',
         kernel_type='bisquare',
-        neighbour_count=0.9,
+        neighbour_count=0.6,
         cache_data=True, cache_estimator=True
     )
 
@@ -26,7 +25,7 @@ def main():
         RandomForestRegressor(),
         distance_measure='euclidean',
         kernel_type='bisquare',
-        neighbour_count=0.9,
+        neighbour_count=0.6,
         cache_data=True, cache_estimator=True
     )
 
