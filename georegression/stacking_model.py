@@ -1,11 +1,12 @@
+from time import time
+
 import numpy as np
 from numba import njit, prange
 from sklearn.base import BaseEstimator
-from sklearn.linear_model import Ridge, RidgeCV
+from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score
 
 from georegression.weight_model import WeightModel
-from time import time
 
 
 @njit()
@@ -25,23 +26,26 @@ def second_order_neighbour(neighbour_matrix):
 
 
 class StackingWeightModel(WeightModel):
-    def __init__(self,
-                 local_estimator,
-                 # Weight matrix param
-                 distance_measure=None,
-                 kernel_type=None,
-                 distance_ratio=None,
-                 bandwidth=None,
-                 neighbour_count=None,
-                 midpoint=None,
-                 p=None,
-                 # Model param
-                 leave_local_out=True,
-                 sample_local_rate=None,
-                 cache_data=False,
-                 cache_estimator=False,
-                 n_jobs=1,
-                 *args, **kwargs):
+    def __init__(
+        self,
+        local_estimator,
+        # Weight matrix param
+        distance_measure=None,
+        kernel_type=None,
+        distance_ratio=None,
+        bandwidth=None,
+        neighbour_count=None,
+        midpoint=None,
+        p=None,
+        # Model param
+        leave_local_out=True,
+        sample_local_rate=None,
+        cache_data=False,
+        cache_estimator=False,
+        n_jobs=1,
+        *args,
+        **kwargs
+    ):
         super().__init__(
             local_estimator,
             distance_measure=distance_measure,
@@ -57,7 +61,8 @@ class StackingWeightModel(WeightModel):
             cache_data=cache_data,
             cache_estimator=cache_estimator,
             n_jobs=n_jobs,
-            *args, **kwargs
+            *args,
+            **kwargs
         )
 
         self.meta_estimator_list = None
@@ -81,30 +86,42 @@ class StackingWeightModel(WeightModel):
 
         cache_estimator = self.cache_estimator
         self.cache_estimator = True
-        super().fit(X, y, coordinate_vector_list=coordinate_vector_list, weight_matrix=weight_matrix)
+
+        t0 = time()
+
+        super().fit(
+            X,
+            y,
+            coordinate_vector_list=coordinate_vector_list,
+            weight_matrix=weight_matrix,
+        )
         self.cache_estimator = cache_estimator
 
-        self.meta_estimator_list = self.local_estimator_list
+        self.meta_estimator_list = np.array(self.local_estimator_list)
         self.local_estimator_list = None
 
         neighbour_matrix = self.weight_matrix_ > 0
+        weight_matrix = self.weight_matrix_
 
         # TODO: Add parallel
         # Indicator of input data for each local estimator.
         t1 = time()
+        print("Local model fitting", t1 - t0)
+
         second_neighbour_matrix = second_order_neighbour(neighbour_matrix)
         t2 = time()
 
-        print('Second order neighbour matrix', t2 - t1)
+        print("Second order neighbour matrix", t2 - t1)
 
         # Iterate the stacking estimator list to get the transformed X meta.
         t_predict_s = time()
         X_meta = np.zeros((self.N, self.N))
         for i in range(self.N):
-            X_meta[second_neighbour_matrix[i], i] = self.meta_estimator_list[i].predict_by_weight(
-                X[second_neighbour_matrix[i]])
+            X_meta[second_neighbour_matrix[i], i] = self.meta_estimator_list[i].predict(
+                X[second_neighbour_matrix[i]]
+            )
         t_predict_e = time()
-        print('predict_by_weight elapsed', t_predict_e - t_predict_s)
+        print("predict_by_weight elapsed", t_predict_e - t_predict_s)
 
         # TODO: Add parallel
         local_stacking_predict = []
@@ -113,7 +130,7 @@ class StackingWeightModel(WeightModel):
         stacking_time = 0
         for i in range(self.N):
             # TODO: Use RidgeCV to find best alpha
-            final_estimator = Ridge(alpha=10, solver='lsqr')
+            final_estimator = Ridge(alpha=10, solver="lsqr")
             # stacking_estimator = RidgeCV()
 
             t3 = time()
@@ -131,19 +148,20 @@ class StackingWeightModel(WeightModel):
             t5 = time()
 
             local_stacking_predict.append(
-                final_estimator.predict(np.expand_dims(X_meta[i, neighbour_matrix[i]], 0))
+                final_estimator.predict(
+                    np.expand_dims(X_meta[i, neighbour_matrix[i]], 0)
+                )
             )
             stacking_estimator = StackingEstimator(
-                final_estimator,
-                self.meta_estimator_list[neighbour_matrix[i]]
+                final_estimator, self.meta_estimator_list[neighbour_matrix[i]]
             )
             local_stacking_estimator_list.append(stacking_estimator)
 
             indexing_time = indexing_time + t4 - t3
             stacking_time = stacking_time + t5 - t4
 
-        print('indexing', indexing_time)
-        print('stacking', stacking_time)
+        print("indexing", indexing_time)
+        print("stacking", stacking_time)
 
         self.stacking_predict_ = local_stacking_predict
         self.llocv_stacking_ = r2_score(self.y_sample_, local_stacking_predict)
@@ -160,9 +178,6 @@ class StackingEstimator(BaseEstimator):
         self.meta_estimators = meta_estimators
 
     def predict(self, X):
-        X_meta = [
-            meta_estimator.predict(X)
-            for meta_estimator in self.meta_estimators
-        ]
+        X_meta = [meta_estimator.predict(X) for meta_estimator in self.meta_estimators]
         X_meta = np.hstack(X_meta)
         return self.final_estimator.predict(X_meta)

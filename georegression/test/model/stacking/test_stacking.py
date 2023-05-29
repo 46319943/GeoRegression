@@ -51,10 +51,7 @@ def test_performance():
     midpoint = True
     p = None
 
-    geographic_nearest_neighbour = 46
-    temporal_nearest_neighbour = 14
-
-    estimator = WeightModel(
+    estimator = StackingWeightModel(
         local_estimator,
         distance_measure,
         kernel_type,
@@ -75,8 +72,15 @@ def test_performance():
     # 185.95322585105896 0.7314718925728154 0.8160008434522774
     # 471.748841047287 0.7170324025502195 0.8186682469210496
 
-    estimator.local_estimator = RandomForestRegressor()
-    estimator.use_stacking = False
+    estimator = WeightModel(
+        RandomForestRegressor(),
+        distance_measure,
+        kernel_type,
+        distance_ratio,
+        bandwidth,
+        neighbour_count,
+        midpoint, p
+    )
     estimator.fit(X, y_true, [xy_vector])
     t3 = t()
 
@@ -93,4 +97,6 @@ def test_performance():
 
 
 if __name__ == '__main__':
-    test_stacking()
+    # test_stacking()
+    test_performance()
+

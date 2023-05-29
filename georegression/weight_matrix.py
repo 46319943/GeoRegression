@@ -2,26 +2,23 @@ from time import time
 from typing import Union
 
 import numpy as np
-from joblib import delayed, Parallel
-
 from slab_utils.quick_logger import logger
-from georegression.distance_utils import calculate_distance_one_to_many
-from georegression.kernel import kernel_function, adaptive_bandwidth, adaptive_kernel
 
-# minimum count of entities to make computation paralleled.
-PARALLEL_MINIMUM_COUNT = 5000
+from georegression.distance_utils import distance_matrices
+from georegression.kernel import kernel_function, adaptive_kernel
 
 
-def calculate_compound_weight_matrix(source_coordinate_vector_list: list[np.ndarray],
-                                     target_coordinate_vector_list: list[np.ndarray],
-                                     distance_measure: Union[str, list[str]],
-                                     kernel_type: Union[str, list[str]],
-                                     distance_ratio: Union[float, list[float]] = None,
-                                     bandwidth: Union[float, list[float]] = None,
-                                     neighbour_count: Union[float, list[float]] = None,
-                                     midpoint: Union[bool, list[bool]] = None,
-                                     p: Union[float, list[float]] = None
-                                     ) -> np.ndarray:
+def calculate_compound_weight_matrix(
+    source_coordinate_vector_list: list[np.ndarray],
+    target_coordinate_vector_list: list[np.ndarray],
+    distance_measure: Union[str, list[str]],
+    kernel_type: Union[str, list[str]],
+    distance_ratio: Union[float, list[float]] = None,
+    bandwidth: Union[float, list[float]] = None,
+    neighbour_count: Union[float, list[float]] = None,
+    midpoint: Union[bool, list[bool]] = None,
+    distance_args: Union[dict, list[dict]] = None,
+) -> np.ndarray:
     """
     Iterate over each source-target pair to get weight matrix.
     Each row represent each source. Each column represent each target.
@@ -36,73 +33,35 @@ def calculate_compound_weight_matrix(source_coordinate_vector_list: list[np.ndar
         bandwidth:
         neighbour_count:
         midpoint:
-        p:
+        distance_args:
 
     Returns:
 
     """
 
-    t_start = time()
-    logger.debug(
-        f'Weight matrix calculate begin {t_start}. '
-        f'{len(source_coordinate_vector_list)} Vectors, '
-        f'{len(source_coordinate_vector_list[0])} Sources, '
-        f'{len(target_coordinate_vector_list[0])} Targets'
+    return compound_weight(
+        distance_matrices(
+            source_coordinate_vector_list,
+            target_coordinate_vector_list,
+            distance_measure,
+            distance_args,
+        ),
+        kernel_type,
+        distance_ratio,
+        bandwidth,
+        neighbour_count,
+        midpoint,
     )
 
-    weight_list = []
 
-    # Parallel the computation for large data
-    if len(source_coordinate_vector_list[0]) >= PARALLEL_MINIMUM_COUNT:
-        parallel = True
-    else:
-        parallel = False
-
-    if parallel:
-        parallel_task = (
-            delayed(calculate_compound_weight)(one_coordinate_vector_list, target_coordinate_vector_list,
-                                               distance_measure, kernel_type, distance_ratio,
-                                               bandwidth, neighbour_count,
-                                               midpoint, p)
-            for one_coordinate_vector_list in zip(*source_coordinate_vector_list)
-        )
-        weight_list = Parallel(n_jobs=-1)(parallel_task)
-    else:
-        for one_coordinate_vector_list in zip(*source_coordinate_vector_list):
-            weight = calculate_compound_weight(one_coordinate_vector_list, target_coordinate_vector_list,
-                                               distance_measure, kernel_type, distance_ratio,
-                                               bandwidth, neighbour_count,
-                                               midpoint, p)
-            weight_list.append(weight)
-    weight_matrix = np.vstack(weight_list)
-
-    # Normalization
-
-    # TODO: More normalization option. The key point is the proportion in a row?
-
-    # default use row normalization
-    row_sum = np.sum(weight_matrix, axis=1)
-    # for some row with all 0 weight.
-    row_sum[row_sum == 0] = 1
-    # Notice the axis of division
-    weight_matrix_norm = weight_matrix / np.expand_dims(row_sum, 1)
-
-    t_end = time()
-    logger.debug(f'Weight matrix calculate end {t_end}. Matrix shape {weight_matrix_norm.shape}')
-
-    return weight_matrix_norm
-
-
-def calculate_compound_weight(one_coordinate_vector_list: list[np.ndarray],
-                              many_coordinate_vector_list: list[np.ndarray],
-                              distance_measure: Union[str, list[str]],
-                              kernel_type: Union[str, list[str]],
-                              distance_ratio: Union[float, list[float]] = None,
-                              bandwidth: Union[float, list[float]] = None,
-                              neighbour_count: Union[float, list[float]] = None,
-                              midpoint: Union[bool, list[bool]] = None,
-                              p: Union[float, list[float]] = None
-                              ) -> np.ndarray:
+def compound_weight(
+    distance_matrices: list[np.ndarray],
+    kernel_type: Union[str, list[str]],
+    distance_ratio: Union[float, list[float], None] = None,
+    bandwidth: Union[float, list[float], None] = None,
+    neighbour_count: Union[float, list[float], None] = None,
+    midpoint: Union[bool, list[bool], None] = None,
+) -> np.ndarray:
     """
     Calculate weights for each coordinate vector (e.g. location coordinate vector or time coordinate vector)
     and integrate the weights of each coordinate vector to one weight
@@ -130,65 +89,69 @@ def calculate_compound_weight(one_coordinate_vector_list: list[np.ndarray],
     """
 
     # Dimension of the vector list. (Len of the vector list)
-    dimension = len(one_coordinate_vector_list)
-    if len(many_coordinate_vector_list) != dimension:
-        raise Exception('Unmatched vector list dimension')
+    dimension = len(distance_matrices)
+
+    source_size = distance_matrices[0].shape[0]
+    target_size = distance_matrices[0].shape[1]
+
+    weight_matrix = np.zeros((source_size, target_size))
+
+    # Check whether the size of distance matrices are the same.
+    if len(set([distance_matrix.shape for distance_matrix in distance_matrices])) != 1:
+        raise Exception("Size of distance matrices are not the same")
 
     # Check whether to use fixed kernel or adaptive kernel
     if bandwidth is None and neighbour_count is None:
-        raise Exception('At least one of bandwidth or neighbour count should be provided')
-
-    # For distance measurement, expand the single value to list with corresponding dimension.
-    if not isinstance(distance_measure, list):
-        distance_measure = [distance_measure] * dimension
-    if not isinstance(p, list):
-        p = [p] * dimension
-
-    # Calculate the distance vector for each coordinate vector
-    distance_vector_list = []
-    for dimension_index in range(dimension):
-        distance_vector = calculate_distance_one_to_many(
-            one_coordinate_vector_list[dimension_index], many_coordinate_vector_list[dimension_index],
-            distance_measure[dimension_index], p[dimension_index]
+        raise Exception(
+            "At least one of bandwidth or neighbour count should be provided"
         )
-        distance_vector_list.append(distance_vector)
 
     # Integrate distance or weight.
     if distance_ratio is not None:
         # Integrate distance
 
         if not isinstance(distance_ratio, list) and dimension != 2:
-            raise Exception('Distance ratio list must be provided for dimension larger than 2')
+            raise Exception(
+                "Distance ratio list must be provided for dimension larger than 2"
+            )
 
         if isinstance(kernel_type, list):
-            raise Exception('Kernel type cannot be list while integrating distance')
+            raise Exception("Kernel type cannot be list while integrating distance")
 
         if isinstance(bandwidth, list):
-            raise Exception('Bandwidth cannot be list while integrating distance')
+            raise Exception("Bandwidth cannot be list while integrating distance")
 
         if isinstance(neighbour_count, list):
-            raise Exception('Neighbour count cannot be list while integrating distance')
+            raise Exception("Neighbour count cannot be list while integrating distance")
 
         if isinstance(midpoint, list):
-            raise Exception('Midpoint cannot be list while integrating distance')
+            raise Exception("Midpoint cannot be list while integrating distance")
 
         # TODO: Normalization step should be considered.
 
-        # TODO: More operation, not only addition, should be considered. 
-        #  Like different distance measurements (replace distance_diff in distance_utils.py). 
+        # TODO: More operation, not only addition, should be considered.
+        #  Like different distance measurements (replace distance_diff in distance_utils.py).
         #  Or some arithmetic operations like multiplication or division?
 
         if not isinstance(distance_ratio, list):
             distance_ratio = [1, distance_ratio]
 
-        # (n, 2) * (2, 1) = (n, 1)
-        distance_vector = np.matmul(
-            np.array(distance_vector_list).T,
-            np.array(distance_ratio, ndmin=2).T
-        )
+        # Iterate source
+        for source_index in range(source_size):
+            distances = [
+                distance_matrices[dim][source_index, :] for dim in range(dimension)
+            ]
 
-        weight = calculate_weight(distance_vector, kernel_type, bandwidth, neighbour_count, midpoint)
-        return weight
+            # (n, d) * (d, 1) = (n, 1)
+            distance = np.matmul(
+                np.array(distances).T, np.array(distance_ratio, ndmin=2).T
+            )
+
+            weight = weight_by_distance(
+                distance, kernel_type, bandwidth, neighbour_count, midpoint
+            )
+
+            weight_matrix[source_index, :] = weight
 
     else:
         # Integrate weight
@@ -207,24 +170,43 @@ def calculate_compound_weight(one_coordinate_vector_list: list[np.ndarray],
 
         # TODO: Also should check the dimension of the parameters.
 
-        # Calculate the weights of each coordinate vector
-        weight_list = []
-        for dimension_index in range(dimension):
-            weight = calculate_weight(distance_vector_list[dimension_index],
-                                      kernel_type[dimension_index],
-                                      bandwidth[dimension_index],
-                                      neighbour_count[dimension_index],
-                                      midpoint[dimension_index])
-            weight_list.append(weight)
+        for source_index in range(source_size):
+            weights = [
+                weight_by_distance(
+                    distance_matrices[dim][source_index, :],
+                    kernel_type[dim],
+                    bandwidth[dim],
+                    neighbour_count[dim],
+                    midpoint[dim],
+                )
+                for dim in range(dimension)
+            ]
+            # TODO: Not only multiplication? e.g. Addition, minimum, maximum, average
+            weight = np.prod(weights, axis=0)
+            weight_matrix[source_index, :] = weight
 
-        # TODO: Not only multiplication? e.g. Addition, minimum, maximum, average
-        weight = np.prod(weight_list, axis=0)
+    # Normalization
 
-        return weight
+    # TODO: More normalization option. The key point is the proportion in a row?
+
+    # default use row normalization
+    row_sum = np.sum(weight_matrix, axis=1)
+    # for some row with all 0 weight.
+    row_sum[row_sum == 0] = 1
+    # Notice the axis of division
+    weight_matrix_norm = weight_matrix / np.expand_dims(row_sum, 1)
+
+    t_end = time()
+    logger.debug(
+        f"Weight matrix calculate end {t_end}. Matrix shape {weight_matrix_norm.shape}"
+    )
+
+    return weight_matrix_norm
 
 
-def calculate_weight(distance_vector, kernel_type,
-                     bandwidth=None, neighbour_count=None, midpoint=False):
+def weight_by_distance(
+    distance_vector, kernel_type, bandwidth=None, neighbour_count=None, midpoint=False
+):
     """
     Using fixed kernel(bandwidth provided) or adaptive kernel(neighbour count provided)
     to calculate the weight based on the distance vector.
@@ -243,7 +225,11 @@ def calculate_weight(distance_vector, kernel_type,
     if bandwidth is not None and neighbour_count is None:
         weight = kernel_function(distance_vector, bandwidth, kernel_type)
     elif bandwidth is None and neighbour_count is not None:
-        weight = adaptive_kernel(distance_vector, neighbour_count, kernel_type, midpoint)
+        weight = adaptive_kernel(
+            distance_vector, neighbour_count, kernel_type, midpoint
+        )
     else:
-        raise Exception('Choose bandwidth for fixed kernel or neighbour count for adaptive kernel')
+        raise Exception(
+            "Choose bandwidth for fixed kernel or neighbour count for adaptive kernel"
+        )
     return weight

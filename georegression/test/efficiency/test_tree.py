@@ -1,11 +1,9 @@
 import time
 
 import numpy as np
-from sklearn.tree import DecisionTreeRegressor
-from sklearn.ensemble import RandomForestRegressor
-
-from gwrf.test.data import TOD
 from joblib.parallel import Parallel, delayed
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.tree import DecisionTreeRegressor
 
 
 def test_tree_efficiency():

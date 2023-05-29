@@ -543,6 +543,7 @@ def partial_cluster(
     if distance is None:
         distance = partial_distance(partial)
 
+    # TODO: Stable Reproducible result.
     # TODO: Range of UMAP embedding value?
     # Reduce dimension. Mapping the distance matrix to low dimension space embedding.
     # Standard embedding is used for visualization. Clusterable embedding is used for clustering.
