@@ -5,6 +5,7 @@ from numba import njit, prange
 from sklearn.base import BaseEstimator
 from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score
+from slab_utils.quick_logger import logger
 
 from georegression.weight_model import WeightModel
 
@@ -43,6 +44,7 @@ class StackingWeightModel(WeightModel):
         cache_data=False,
         cache_estimator=False,
         n_jobs=1,
+        alpha=10,
         *args,
         **kwargs
     ):
@@ -68,6 +70,7 @@ class StackingWeightModel(WeightModel):
         self.meta_estimator_list = None
         self.stacking_predict_ = None
         self.llocv_stacking_ = None
+        self.alpha = alpha
 
     def fit(self, X, y, coordinate_vector_list=None, weight_matrix=None):
         """
@@ -87,7 +90,7 @@ class StackingWeightModel(WeightModel):
         cache_estimator = self.cache_estimator
         self.cache_estimator = True
 
-        t0 = time()
+        t_local_start = time()
 
         super().fit(
             X,
@@ -95,8 +98,11 @@ class StackingWeightModel(WeightModel):
             coordinate_vector_list=coordinate_vector_list,
             weight_matrix=weight_matrix,
         )
-        self.cache_estimator = cache_estimator
 
+        t_local_end = time()
+        logger.debug("Local model fitting elapsed: %s", t_local_end - t_local_start)
+
+        self.cache_estimator = cache_estimator
         self.meta_estimator_list = np.array(self.local_estimator_list)
         self.local_estimator_list = None
 
@@ -105,13 +111,13 @@ class StackingWeightModel(WeightModel):
 
         # TODO: Add parallel
         # Indicator of input data for each local estimator.
-        t1 = time()
-        print("Local model fitting", t1 - t0)
-
+        t_second_order_start = time()
         second_neighbour_matrix = second_order_neighbour(neighbour_matrix)
-        t2 = time()
-
-        print("Second order neighbour matrix", t2 - t1)
+        t_second_order_end = time()
+        logger.debug(
+            "Second order neighbour matrix elapsed: %s",
+            t_second_order_end - t_second_order_start,
+        )
 
         # Iterate the stacking estimator list to get the transformed X meta.
         t_predict_s = time()
@@ -121,7 +127,7 @@ class StackingWeightModel(WeightModel):
                 X[second_neighbour_matrix[i]]
             )
         t_predict_e = time()
-        print("predict_by_weight elapsed", t_predict_e - t_predict_s)
+        logger.debug("Meta estimator prediction elapsed: %s", t_predict_e - t_predict_s)
 
         # TODO: Add parallel
         local_stacking_predict = []
@@ -130,22 +136,19 @@ class StackingWeightModel(WeightModel):
         stacking_time = 0
         for i in range(self.N):
             # TODO: Use RidgeCV to find best alpha
-            final_estimator = Ridge(alpha=10, solver="lsqr")
-            # stacking_estimator = RidgeCV()
-
-            t3 = time()
+            final_estimator = Ridge(alpha=self.alpha, solver="lsqr")
 
             # TODO: Consider whether to add the meta prediction of the local meta estimator.
+            t_indexing_start = time()
             X_fit = X_meta[neighbour_matrix[i]][:, neighbour_matrix[i]]
             y_fit = y[neighbour_matrix[i]]
+            t_indexing_end = time()
 
-            t4 = time()
-
+            t_stacking_start = time()
             final_estimator.fit(
                 X_fit, y_fit, sample_weight=weight_matrix[i, neighbour_matrix[i]]
             )
-
-            t5 = time()
+            t_stacking_end = time()
 
             local_stacking_predict.append(
                 final_estimator.predict(
@@ -157,11 +160,11 @@ class StackingWeightModel(WeightModel):
             )
             local_stacking_estimator_list.append(stacking_estimator)
 
-            indexing_time = indexing_time + t4 - t3
-            stacking_time = stacking_time + t5 - t4
+            indexing_time = indexing_time + t_indexing_end - t_indexing_start
+            stacking_time = stacking_time + t_stacking_end - t_stacking_start
 
-        print("indexing", indexing_time)
-        print("stacking", stacking_time)
+        logger.debug("Indexing time: %s", indexing_time)
+        logger.debug("Stacking time: %s", stacking_time)
 
         self.stacking_predict_ = local_stacking_predict
         self.llocv_stacking_ = r2_score(self.y_sample_, local_stacking_predict)
