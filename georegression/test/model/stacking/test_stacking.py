@@ -19,7 +19,7 @@ def test_stacking():
     kernel_type = "bisquare"
     distance_ratio = None
     bandwidth = None
-    neighbour_count = 0.01
+    neighbour_count = 0.1
     midpoint = True
     p = None
 
@@ -86,6 +86,59 @@ def test_alpha():
     """
 
 
+def test_estimator_sample():
+    local_estimator = DecisionTreeRegressor(splitter="random", max_depth=2)
+    distance_measure = "euclidean"
+    kernel_type = "bisquare"
+    distance_ratio = None
+    bandwidth = None
+    neighbour_count = 0.1
+    midpoint = True
+    p = None
+
+    model = StackingWeightModel(
+        local_estimator,
+        distance_measure,
+        kernel_type,
+        distance_ratio,
+        bandwidth,
+        neighbour_count,
+        midpoint,
+        p,
+        estimator_sample_rate=0.1,
+    )
+
+    model.fit(X, y_true, [xy_vector, time])
+    print(f"{model.llocv_score_}, {model.llocv_stacking_}")
+
+    model = StackingWeightModel(
+        local_estimator,
+        distance_measure,
+        kernel_type,
+        distance_ratio,
+        bandwidth,
+        neighbour_count,
+        midpoint,
+        p,
+        estimator_sample_rate=0.5,
+    )
+    model.fit(X, y_true, [xy_vector, time])
+    print(f"{model.llocv_score_}, {model.llocv_stacking_}")
+
+    model = StackingWeightModel(
+        local_estimator,
+        distance_measure,
+        kernel_type,
+        distance_ratio,
+        bandwidth,
+        neighbour_count,
+        midpoint,
+        p,
+        estimator_sample_rate=None,
+    )
+    model.fit(X, y_true, [xy_vector, time])
+    print(f"{model.llocv_score_}, {model.llocv_stacking_}")
+
 def test_performance():
     local_estimator = DecisionTreeRegressor(splitter="random", max_depth=2)
     distance_measure = "euclidean"
@@ -146,4 +199,5 @@ def test_performance():
 if __name__ == "__main__":
     # test_stacking()
     # test_alpha()
-    test_performance()
+    test_estimator_sample()
+    # test_performance()

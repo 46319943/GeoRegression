@@ -33,6 +33,7 @@ def test_regression():
     print()
     print(t2 - t1, t3 - t2, t4 - t3)
     # 2.859616994857788 0.6065783500671387 3.498260974884033
+    # neighbour_count = 500 estimator_count = 100 AMD-7950X 10.886837720870972 0.49491024017333984 6.453542470932007
 
 
 def test_solver():
@@ -117,6 +118,6 @@ def test_alpha():
 
 
 if __name__ == "__main__":
-    # test_regression()
+    test_regression()
     # test_solver()
-    test_alpha()
+    # test_alpha()

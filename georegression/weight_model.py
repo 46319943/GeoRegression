@@ -54,7 +54,6 @@ def _fit(X, y, estimator_list, weight_matrix,
     """
 
     t_start = time()
-    logger.debug(f'Fit begin {t_start}')
 
     # Generate the mask of selection from weight matrix. Select non-zero weight to avoid zero weight input.
     neighbour_matrix = weight_matrix != 0
@@ -83,7 +82,7 @@ def _fit(X, y, estimator_list, weight_matrix,
     local_predict, local_estimator_list = list(zip(*parallel_result))
 
     t_end = time()
-    logger.debug(f'Fit end {t_end}. {t_end - t_start} elapsed')
+    logger.debug(f"Parallel fit time: {t_end - t_start}")
 
     return local_predict, local_estimator_list
 

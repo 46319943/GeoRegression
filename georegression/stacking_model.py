@@ -1,3 +1,4 @@
+import math
 from time import time
 
 import numpy as np
@@ -43,8 +44,9 @@ class StackingWeightModel(WeightModel):
         sample_local_rate=None,
         cache_data=False,
         cache_estimator=False,
-        n_jobs=1,
+        n_jobs=-1,
         alpha=10,
+        estimator_sample_rate=None,
         *args,
         **kwargs
     ):
@@ -71,6 +73,7 @@ class StackingWeightModel(WeightModel):
         self.stacking_predict_ = None
         self.llocv_stacking_ = None
         self.alpha = alpha
+        self.estimator_sample_rate = estimator_sample_rate
 
     def fit(self, X, y, coordinate_vector_list=None, weight_matrix=None):
         """
@@ -119,7 +122,8 @@ class StackingWeightModel(WeightModel):
             t_second_order_end - t_second_order_start,
         )
 
-        # Iterate the stacking estimator list to get the transformed X meta.
+        # Iterate the stacking estimator list to get the transformed X meta. First dimension is data index, second dimension is estimator index.
+        # X_meta[i, j] means the prediction of estimator j on data i.
         t_predict_s = time()
         X_meta = np.zeros((self.N, self.N))
         for i in range(self.N):
@@ -128,6 +132,11 @@ class StackingWeightModel(WeightModel):
             )
         t_predict_e = time()
         logger.debug("Meta estimator prediction elapsed: %s", t_predict_e - t_predict_s)
+
+        t_transpose_start = time()
+        X_meta_T = X_meta.transpose().copy(order="C")
+        t_transpost_end = time()
+        print("Transpose time: ", t_transpost_end - t_transpose_start)
 
         # TODO: Add parallel
         local_stacking_predict = []
@@ -140,7 +149,33 @@ class StackingWeightModel(WeightModel):
 
             # TODO: Consider whether to add the meta prediction of the local meta estimator.
             t_indexing_start = time()
-            X_fit = X_meta[neighbour_matrix[i]][:, neighbour_matrix[i]]
+
+            # Sample from neighbour bool matrix to get sampled neighbour index.
+            if self.estimator_sample_rate is not None:
+                neighbour_indexes = np.nonzero(neighbour_matrix[i])
+                neighbour_indexes = np.random.choice(
+                    neighbour_indexes[0],
+                    math.ceil(
+                        neighbour_indexes[0].shape[0] * self.estimator_sample_rate
+                    ),
+                    replace=False,
+                )
+                # Convert back to bool matrix.
+                neighbour_sample = np.zeros_like(neighbour_matrix[i])
+                neighbour_sample[neighbour_indexes] = 1
+            else:
+                neighbour_sample = neighbour_matrix[i]
+
+            # X_fit = X_meta[:, neighbour_sample][neighbour_matrix[i]]
+            # X_fit = X_meta[neighbour_matrix[i], :][:, neighbour_sample]
+            # X_fit = X_meta[
+            #     np.matmul(
+            #         neighbour_matrix[i].reshape(-1, 1), neighbour_sample.reshape(1, -1)
+            #     )
+            # ].reshape(-1, neighbour_sample.sum())
+            # X_fit = X_meta.T[neighbour_sample][:, neighbour_matrix[i]].T
+            # X_fit = X_meta[neighbour_matrix[i]][:, neighbour_sample]
+            X_fit = X_meta_T[neighbour_sample][:, neighbour_matrix[i]].T
             y_fit = y[neighbour_matrix[i]]
             t_indexing_end = time()
 
@@ -151,12 +186,10 @@ class StackingWeightModel(WeightModel):
             t_stacking_end = time()
 
             local_stacking_predict.append(
-                final_estimator.predict(
-                    np.expand_dims(X_meta[i, neighbour_matrix[i]], 0)
-                )
+                final_estimator.predict(np.expand_dims(X_meta[i, neighbour_sample], 0))
             )
             stacking_estimator = StackingEstimator(
-                final_estimator, self.meta_estimator_list[neighbour_matrix[i]]
+                final_estimator, self.meta_estimator_list[neighbour_sample]
             )
             local_stacking_estimator_list.append(stacking_estimator)
 
@@ -165,6 +198,36 @@ class StackingWeightModel(WeightModel):
 
         logger.debug("Indexing time: %s", indexing_time)
         logger.debug("Stacking time: %s", stacking_time)
+
+        # def stacking_job(X_fit, Y_fit, sample_weight, X_local):
+        #     final_estimator = Ridge(alpha=self.alpha, solver="lsqr")
+        #     final_estimator.fit(X_fit, Y_fit, sample_weight=sample_weight)
+        #     return final_estimator, final_estimator.predict(X_local)
+        #
+        # t_parallel_indexing_start = time()
+        # job_list = []
+        # for i in range(self.N):
+        #     job_list.append(
+        #         delayed(stacking_job)(
+        #             X_meta[neighbour_matrix[i]][:, neighbour_matrix[i]],
+        #             y[neighbour_matrix[i]],
+        #             weight_matrix[i, neighbour_matrix[i]],
+        #             np.expand_dims(X_meta[i, neighbour_matrix[i]], 0),
+        #         )
+        #     )
+        # t_parallel_indexing_end = time()
+        # logger.debug(
+        #     "Parallel indexing elapsed: %s",
+        #     t_parallel_indexing_end - t_parallel_indexing_start,
+        # )
+        #
+        # t_parallel_start = time()
+        # parallel_result = Parallel(n_jobs=self.n_jobs)(job_list)
+        # for i in range(self.N):
+        #     local_stacking_estimator_list.append(parallel_result[i][0])
+        #     local_stacking_predict.append(parallel_result[i][1])
+        # t_parallel_end = time()
+        # logger.debug("Parallel stacking elapsed: %s", t_parallel_end - t_parallel_start)
 
         self.stacking_predict_ = local_stacking_predict
         self.llocv_stacking_ = r2_score(self.y_sample_, local_stacking_predict)
