@@ -21,6 +21,9 @@ def second_order_neighbour(neighbour_matrix):
     Returns:
 
     """
+
+    # TODO: Use parallel or sparse matrix to speed up.
+
     second_order_matrix = np.empty_like(neighbour_matrix)
     for i in prange(neighbour_matrix.shape[0]):
         second_order_matrix[i] = np.sum(neighbour_matrix[neighbour_matrix[i]], axis=0)
@@ -112,7 +115,6 @@ class StackingWeightModel(WeightModel):
         neighbour_matrix = self.weight_matrix_ > 0
         weight_matrix = self.weight_matrix_
 
-        # TODO: Add parallel
         # Indicator of input data for each local estimator.
         t_second_order_start = time()
         second_neighbour_matrix = second_order_neighbour(neighbour_matrix)
@@ -141,7 +143,6 @@ class StackingWeightModel(WeightModel):
             t_transpost_end - t_transpose_start,
         )
 
-        # TODO: Add parallel
         local_stacking_predict = []
         local_stacking_estimator_list = []
         indexing_time = 0
@@ -169,15 +170,6 @@ class StackingWeightModel(WeightModel):
             else:
                 neighbour_sample = neighbour_matrix[i]
 
-            # X_fit = X_meta[:, neighbour_sample][neighbour_matrix[i]]
-            # X_fit = X_meta[neighbour_matrix[i], :][:, neighbour_sample]
-            # X_fit = X_meta[
-            #     np.matmul(
-            #         neighbour_matrix[i].reshape(-1, 1), neighbour_sample.reshape(1, -1)
-            #     )
-            # ].reshape(-1, neighbour_sample.sum())
-            # X_fit = X_meta.T[neighbour_sample][:, neighbour_matrix[i]].T
-            # X_fit = X_meta[neighbour_matrix[i]][:, neighbour_sample]
             X_fit = X_meta_T[neighbour_sample][:, neighbour_matrix[i]].T
             y_fit = y[neighbour_matrix[i]]
             t_indexing_end = time()
@@ -201,36 +193,6 @@ class StackingWeightModel(WeightModel):
 
         logger.debug("Indexing time: %s", indexing_time)
         logger.debug("Stacking time: %s", stacking_time)
-
-        # def stacking_job(X_fit, Y_fit, sample_weight, X_local):
-        #     final_estimator = Ridge(alpha=self.alpha, solver="lsqr")
-        #     final_estimator.fit(X_fit, Y_fit, sample_weight=sample_weight)
-        #     return final_estimator, final_estimator.predict(X_local)
-        #
-        # t_parallel_indexing_start = time()
-        # job_list = []
-        # for i in range(self.N):
-        #     job_list.append(
-        #         delayed(stacking_job)(
-        #             X_meta[neighbour_matrix[i]][:, neighbour_matrix[i]],
-        #             y[neighbour_matrix[i]],
-        #             weight_matrix[i, neighbour_matrix[i]],
-        #             np.expand_dims(X_meta[i, neighbour_matrix[i]], 0),
-        #         )
-        #     )
-        # t_parallel_indexing_end = time()
-        # logger.debug(
-        #     "Parallel indexing elapsed: %s",
-        #     t_parallel_indexing_end - t_parallel_indexing_start,
-        # )
-        #
-        # t_parallel_start = time()
-        # parallel_result = Parallel(n_jobs=self.n_jobs)(job_list)
-        # for i in range(self.N):
-        #     local_stacking_estimator_list.append(parallel_result[i][0])
-        #     local_stacking_predict.append(parallel_result[i][1])
-        # t_parallel_end = time()
-        # logger.debug("Parallel stacking elapsed: %s", t_parallel_end - t_parallel_start)
 
         self.stacking_predict_ = local_stacking_predict
         self.llocv_stacking_ = r2_score(self.y_sample_, local_stacking_predict)
