@@ -19,7 +19,7 @@ def test_stacking():
     kernel_type = "bisquare"
     distance_ratio = None
     bandwidth = None
-    neighbour_count = 0.1
+    neighbour_count = 0.01
     midpoint = True
     p = None
 
@@ -145,7 +145,7 @@ def test_performance():
     kernel_type = "bisquare"
     distance_ratio = None
     bandwidth = None
-    neighbour_count = 0.01
+    neighbour_count = 0.1
     midpoint = True
     p = None
 
@@ -157,19 +157,19 @@ def test_performance():
         bandwidth,
         neighbour_count,
         midpoint,
-        p,
+        p, estimator_sample_rate=0.1
     )
 
-    estimator.n_jobs = -1
-
     t1 = t()
-    estimator.use_stacking = True
     estimator.fit(X, y_true, [xy_vector, time])
     t2 = t()
     print(t2 - t1, estimator.llocv_score_, estimator.llocv_stacking_)
     # 917.4381189346313 0.7218072208798815 0.8274797786820569
     # 185.95322585105896 0.7314718925728154 0.8160008434522774
     # 471.748841047287 0.7170324025502195 0.8186682469210496
+    # neighbour_count = 0.01 12.433058261871338 0.7264394281767108 0.9421304744738035
+    # neighbour_count = 0.1 59.23662233352661 0.7549265112954625 0.8533792294300071
+    # neighbour_count = 0.1 estimator_sample_rate=0.1 17.0358464717865 0.7530776263728781 0.8559844494270573
 
     estimator = WeightModel(
         RandomForestRegressor(),
@@ -187,6 +187,9 @@ def test_performance():
     print(t3 - t2, estimator.llocv_score_)
     # 1075.0753190517426 0.8228107533011373
     # 1071.8284921646118 0.8242928357531293
+    # neighbour_count = 0.01 28.833017110824585 0.8278781002714682
+    # neighbour_count = 0.1 183.82665371894836 0.8354290564175364
+
 
     estimator.local_estimator = LinearRegression()
     estimator.use_stacking = False
@@ -194,10 +197,14 @@ def test_performance():
     t4 = t()
 
     print(t4 - t3, estimator.llocv_score_)
+    # neighbour_count = 0.01 2.439164876937866 -2355843.4163171016
+    # neighbour_count = 0.1 4.386993885040283 0.7985700705302594
+
+
 
 
 if __name__ == "__main__":
     # test_stacking()
     # test_alpha()
-    test_estimator_sample()
-    # test_performance()
+    # test_estimator_sample()
+    test_performance()

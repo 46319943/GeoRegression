@@ -136,7 +136,10 @@ class StackingWeightModel(WeightModel):
         t_transpose_start = time()
         X_meta_T = X_meta.transpose().copy(order="C")
         t_transpost_end = time()
-        print("Transpose time: ", t_transpost_end - t_transpose_start)
+        logger.debug(
+            "Transpose meta estimator prediction elapsed: %s",
+            t_transpost_end - t_transpose_start,
+        )
 
         # TODO: Add parallel
         local_stacking_predict = []
