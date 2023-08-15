@@ -107,16 +107,16 @@ def sample_x(n, type='uniform'):
         return np.random.exponential(1, n)
 
 
-def generate_sample(random_seed=None):
+def generate_sample(random_seed=None, count=100):
     np.random.seed(random_seed)
 
     coef1 = radial_coefficient(np.array([0, 0]))
     coef2 = direction_coefficient(np.array([1, 1]))
 
-    points = sample_points(100, 2, [(-10, 10), (-10, 10)])
+    points = sample_points(count, 2, [(-10, 10), (-10, 10)])
 
-    x1 = sample_x(100)
-    x2 = sample_x(100)
+    x1 = sample_x(count)
+    x2 = sample_x(count)
 
     y = polynomial_function(coef1, 2)(x1, points) + 3 + relu_function(coef2)(x2, points) * x1
 
