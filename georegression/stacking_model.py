@@ -8,11 +8,12 @@ from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score
 from slab_utils.quick_logger import logger
 
+from georegression.weight_matrix import calculate_compound_weight_matrix
 from georegression.weight_model import WeightModel
 
 
 @njit()
-def second_order_neighbour(neighbour_matrix):
+def second_order_neighbour(neighbour_matrix, neighbour_leave_out=None):
     """
     Calculate second-order neighbour matrix.
     Args:
@@ -24,10 +25,52 @@ def second_order_neighbour(neighbour_matrix):
 
     # TODO: Use parallel or sparse matrix to speed up.
 
+    if neighbour_leave_out is None:
+        neighbour_leave_out = neighbour_matrix
+
     second_order_matrix = np.empty_like(neighbour_matrix)
     for i in prange(neighbour_matrix.shape[0]):
-        second_order_matrix[i] = np.sum(neighbour_matrix[neighbour_matrix[i]], axis=0)
+        second_order_matrix[i] = np.sum(
+            neighbour_matrix[neighbour_leave_out[i]], axis=0
+        )
     return second_order_matrix
+
+
+def sample_neighbour(weight_matrix, sample_rate=0.5):
+    """
+    Sample neighbour from weight matrix.
+    Only the sampled neighbour will be used to fit the meta model.
+    Therefore, the meta model will not be used for the sampled neighbour, but the out-of-sample neighbour.
+    Args:
+        weight_matrix:
+        sample_rate:
+
+    Returns:
+
+    """
+    neighbour_matrix = weight_matrix > 0
+    np.fill_diagonal(neighbour_matrix, False)
+    neighbour_count = np.sum(neighbour_matrix, axis=1)
+    neighbour_count_sampled = np.ceil(neighbour_count * sample_rate).astype(int)
+    neighbour_count_sampled[neighbour_count_sampled == 0] = 1
+    neighbour_count_sampled[
+        neighbour_count_sampled > neighbour_count
+    ] = neighbour_count[neighbour_count_sampled > neighbour_count]
+
+    neighbour_matrix_sampled = np.zeros_like(neighbour_matrix)
+
+    # Set fixed random seed.
+    np.random.seed(0)
+
+    for i in range(neighbour_matrix.shape[0]):
+        neighbour_matrix_sampled[
+            i,
+            np.random.choice(
+                np.nonzero(neighbour_matrix[i])[0], neighbour_count_sampled[i]
+            ),
+        ] = 1
+
+    return neighbour_matrix_sampled.astype(bool)
 
 
 class StackingWeightModel(WeightModel):
@@ -98,6 +141,27 @@ class StackingWeightModel(WeightModel):
 
         t_local_start = time()
 
+        if weight_matrix is None:
+            weight_matrix = calculate_compound_weight_matrix(
+                coordinate_vector_list,
+                coordinate_vector_list,
+                self.distance_measure,
+                self.kernel_type,
+                self.distance_ratio,
+                self.bandwidth,
+                self.neighbour_count,
+                self.midpoint,
+                self.p,
+            )
+
+        # Do the leave out neighbour sampling.
+        neighbour_leave_out = None
+        if self.estimator_sample_rate is not None:
+            neighbour_leave_out = sample_neighbour(
+                weight_matrix, self.estimator_sample_rate
+            )
+            weight_matrix = weight_matrix * ~neighbour_leave_out
+
         super().fit(
             X,
             y,
@@ -124,7 +188,9 @@ class StackingWeightModel(WeightModel):
             t_second_order_end - t_second_order_start,
         )
 
-        # Iterate the stacking estimator list to get the transformed X meta. First dimension is data index, second dimension is estimator index.
+        # Iterate the stacking estimator list to get the transformed X meta.
+        # Cache all the data that will be used by neighbour estimators in one iteration by using second_neighbour_matrix.
+        # First dimension is data index, second dimension is estimator index.
         # X_meta[i, j] means the prediction of estimator j on data i.
         t_predict_s = time()
         X_meta = np.zeros((self.N, self.N))
@@ -167,6 +233,9 @@ class StackingWeightModel(WeightModel):
                 # Convert back to bool matrix.
                 neighbour_sample = np.zeros_like(neighbour_matrix[i])
                 neighbour_sample[neighbour_indexes] = 1
+
+                # Overwrite the neighbour sample to leave out neighbour.
+                neighbour_sample = neighbour_leave_out[i]
             else:
                 neighbour_sample = neighbour_matrix[i]
 
