@@ -223,14 +223,14 @@ class StackingWeightModel(WeightModel):
             # TODO: Consider whether to add the meta prediction of the local meta estimator.
             t_indexing_start = time()
 
+            neighbour_sample = neighbour_matrix[i]
+
+            if self.neighbour_leave_out_rate is not None:
+                neighbour_sample = neighbour_leave_out[i]
+
             # Sample from neighbour bool matrix to get sampled neighbour index.
             if self.estimator_sample_rate is not None:
-                if neighbour_leave_out is not None:
-                    # If neighbour leave out is enabled, use the leave out matrix to sample.
-                    neighbour_indexes = np.nonzero(neighbour_leave_out[i])
-                else:
-                    # If neighbour leave out is not enabled, use the neighbour matrix to sample.
-                    neighbour_indexes = np.nonzero(neighbour_matrix[i])
+                neighbour_indexes = np.nonzero(neighbour_sample[i])
 
                 neighbour_indexes = np.random.choice(
                     neighbour_indexes[0],
@@ -242,8 +242,6 @@ class StackingWeightModel(WeightModel):
                 # Convert back to bool matrix.
                 neighbour_sample = np.zeros_like(neighbour_matrix[i])
                 neighbour_sample[neighbour_indexes] = 1
-            else:
-                neighbour_sample = neighbour_matrix[i]
 
             X_fit = X_meta_T[neighbour_sample][:, neighbour_matrix[i]].T
             y_fit = y[neighbour_matrix[i]]
