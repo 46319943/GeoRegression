@@ -66,7 +66,8 @@ def sample_neighbour(weight_matrix, sample_rate=0.5):
         neighbour_matrix_sampled[
             i,
             np.random.choice(
-                np.nonzero(neighbour_matrix[i])[0], neighbour_count_sampled[i]
+                np.nonzero(neighbour_matrix[i])[0], neighbour_count_sampled[i],
+                replace=False
             ),
         ] = 1
 
@@ -92,6 +93,7 @@ class StackingWeightModel(WeightModel):
         cache_estimator=False,
         n_jobs=-1,
         alpha=10,
+        neighbour_leave_out_rate=None,
         estimator_sample_rate=None,
         *args,
         **kwargs
@@ -119,6 +121,7 @@ class StackingWeightModel(WeightModel):
         self.stacking_predict_ = None
         self.llocv_stacking_ = None
         self.alpha = alpha
+        self.neighbour_leave_out_rate = neighbour_leave_out_rate
         self.estimator_sample_rate = estimator_sample_rate
 
     def fit(self, X, y, coordinate_vector_list=None, weight_matrix=None):
@@ -156,9 +159,9 @@ class StackingWeightModel(WeightModel):
 
         # Do the leave out neighbour sampling.
         neighbour_leave_out = None
-        if self.estimator_sample_rate is not None:
+        if self.neighbour_leave_out_rate is not None:
             neighbour_leave_out = sample_neighbour(
-                weight_matrix, self.estimator_sample_rate
+                weight_matrix, self.neighbour_leave_out_rate
             )
             weight_matrix = weight_matrix * ~neighbour_leave_out
 
@@ -222,7 +225,13 @@ class StackingWeightModel(WeightModel):
 
             # Sample from neighbour bool matrix to get sampled neighbour index.
             if self.estimator_sample_rate is not None:
-                neighbour_indexes = np.nonzero(neighbour_matrix[i])
+                if neighbour_leave_out is not None:
+                    # If neighbour leave out is enabled, use the leave out matrix to sample.
+                    neighbour_indexes = np.nonzero(neighbour_leave_out[i])
+                else:
+                    # If neighbour leave out is not enabled, use the neighbour matrix to sample.
+                    neighbour_indexes = np.nonzero(neighbour_matrix[i])
+
                 neighbour_indexes = np.random.choice(
                     neighbour_indexes[0],
                     math.ceil(
@@ -233,9 +242,6 @@ class StackingWeightModel(WeightModel):
                 # Convert back to bool matrix.
                 neighbour_sample = np.zeros_like(neighbour_matrix[i])
                 neighbour_sample[neighbour_indexes] = 1
-
-                # Overwrite the neighbour sample to leave out neighbour.
-                neighbour_sample = neighbour_leave_out[i]
             else:
                 neighbour_sample = neighbour_matrix[i]
 
