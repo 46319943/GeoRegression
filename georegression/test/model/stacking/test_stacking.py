@@ -1,7 +1,7 @@
 from time import time as t
 
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, Ridge, RidgeCV
 from sklearn.tree import DecisionTreeRegressor
 
 from georegression.stacking_model import StackingWeightModel
@@ -157,7 +157,9 @@ def test_performance():
         bandwidth,
         neighbour_count,
         midpoint,
-        p, estimator_sample_rate=0.1
+        p,
+        neighbour_leave_out_rate=0.1,
+        # estimator_sample_rate=0.1,
     )
 
     t1 = t()
@@ -170,9 +172,11 @@ def test_performance():
     # neighbour_count = 0.01 12.433058261871338 0.7264394281767108 0.9421304744738035
     # neighbour_count = 0.1 59.23662233352661 0.7549265112954625 0.8533792294300071
     # neighbour_count = 0.1 estimator_sample_rate=0.1 17.0358464717865 0.7530776263728781 0.8559844494270573
+    # neighbour_count = 0.01 neighbour_leave_out_rate=0.1 9.614805459976196 0.7025745058476021 0.8849390576510993
+    # neighbour_count = 0.1 neighbour_leave_out_rate=0.1 15.770824909210205 0.7680928707118291 0.8556669876852211
 
     estimator = WeightModel(
-        RandomForestRegressor(),
+        RandomForestRegressor(n_estimators=5),
         distance_measure,
         kernel_type,
         distance_ratio,
@@ -189,9 +193,10 @@ def test_performance():
     # 1071.8284921646118 0.8242928357531293
     # neighbour_count = 0.01 28.833017110824585 0.8278781002714682
     # neighbour_count = 0.1 183.82665371894836 0.8354290564175364
+    # neighbour_count = 0.01 n_estimators=5  3.1212289333343506 0.7988055718383715
+    # neighbour_count = 0.1 n_estimators=5  10.742109775543213 0.7971370484169908
 
-
-    estimator.local_estimator = LinearRegression()
+    estimator.local_estimator = RidgeCV()
     estimator.use_stacking = False
     estimator.fit(X, y_true, [xy_vector])
     t4 = t()
@@ -199,6 +204,8 @@ def test_performance():
     print(t4 - t3, estimator.llocv_score_)
     # neighbour_count = 0.01 2.439164876937866 -2355843.4163171016
     # neighbour_count = 0.1 4.386993885040283 0.7985700705302594
+    # neighbour_count = 0.01 RidgeCV 2.1749119758605957 0.736926407604787
+    # neighbour_count = 0.1 RidgeCV 4.276575803756714 0.800494195041368
 
 
 
