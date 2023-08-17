@@ -1,6 +1,7 @@
 Demo
 **/Plot
 *.png
+*.jpg
 *.html
 
 # Byte-compiled / optimized / DLL files

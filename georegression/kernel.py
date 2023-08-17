@@ -1,6 +1,7 @@
 import math
 from typing import Union
 
+import dask.array as da
 import numpy as np
 
 KERNEL_TYPE_ENUM = ['linear', 'uniform', 'gaussian', 'exponential', 'boxcar', 'bisquare', 'tricube']
@@ -70,6 +71,12 @@ def adaptive_bandwidth(distance_vector: np.ndarray, neighbour_count: Union[int, 
     Returns:
         float: return the distance to the K nearest neighbour
     """
+
+    if isinstance(distance_vector, da.Array):
+        # Support for dask array
+        # Duplicated coordinate is not supported
+        if isinstance(neighbour_count, float):
+            return np.percentile(distance_vector, neighbour_count)
 
     # Duplicated coordinate considered as a single neighbour
     distance_unique = np.unique(distance_vector)

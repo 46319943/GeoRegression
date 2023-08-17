@@ -2,6 +2,7 @@ from time import time
 from typing import Union
 
 import numpy as np
+import dask.array as da
 from slab_utils.quick_logger import logger
 
 from georegression.distance_utils import distance_matrices
@@ -100,7 +101,11 @@ def compound_weight(
     source_size = distance_matrices[0].shape[0]
     target_size = distance_matrices[0].shape[1]
 
-    weight_matrix = np.zeros((source_size, target_size))
+    # Support for dask
+    if isinstance(distance_matrices[0], da.Array):
+        weight_matrix = da.zeros((source_size, target_size))
+    else:
+        weight_matrix = np.zeros((source_size, target_size))
 
     # Check whether the size of distance matrices are the same.
     if len(set([distance_matrix.shape for distance_matrix in distance_matrices])) != 1:
@@ -187,6 +192,11 @@ def compound_weight(
                 )
                 for dim in range(dimension)
             ]
+
+            # Support for dask
+            if isinstance(weights[0], da.Array):
+                weights = da.array(weights)
+
             # TODO: Not only multiplication? e.g. Addition, minimum, maximum, average
             weight = np.prod(weights, axis=0)
             weight_matrix[source_index, :] = weight
