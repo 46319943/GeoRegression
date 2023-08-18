@@ -1,8 +1,9 @@
 from time import time
 from typing import Union
 
-import numpy as np
 import dask.array as da
+import numpy as np
+from dask.graph_manipulation import wait_on
 from slab_utils.quick_logger import logger
 
 from georegression.distance_utils import distance_matrices
@@ -68,7 +69,7 @@ def compound_weight(
     bandwidth: Union[float, list[float], None] = None,
     neighbour_count: Union[float, list[float], None] = None,
     midpoint: Union[bool, list[bool], None] = None,
-) -> np.ndarray:
+) -> Union[np.ndarray, da.array]:
     """
     Calculate weights for each coordinate vector (e.g. location coordinate vector or time coordinate vector)
     and integrate the weights of each coordinate vector to one weight
@@ -102,10 +103,7 @@ def compound_weight(
     target_size = distance_matrices[0].shape[1]
 
     # Support for dask
-    if isinstance(distance_matrices[0], da.Array):
-        weight_matrix = da.zeros((source_size, target_size))
-    else:
-        weight_matrix = np.zeros((source_size, target_size))
+    weight_matrix = []
 
     # Check whether the size of distance matrices are the same.
     if len(set([distance_matrix.shape for distance_matrix in distance_matrices])) != 1:
@@ -162,7 +160,7 @@ def compound_weight(
                 distance, kernel_type, bandwidth, neighbour_count, midpoint
             )
 
-            weight_matrix[source_index, :] = weight
+            weight_matrix.append(weight)
 
     else:
         # Integrate weight
@@ -181,25 +179,44 @@ def compound_weight(
 
         # TODO: Also should check the dimension of the parameters.
 
-        for source_index in range(source_size):
-            weights = [
-                weight_by_distance(
-                    distance_matrices[dim][source_index, :],
-                    kernel_type[dim],
-                    bandwidth[dim],
-                    neighbour_count[dim],
-                    midpoint[dim],
+        weights = []
+        for dim in range(dimension):
+            weights.append(
+                wait_on(
+                    weight_by_distance(
+                        distance_matrices[dim],
+                        kernel_type[dim],
+                        bandwidth[dim],
+                        neighbour_count[dim],
+                        midpoint[dim],
+                    )
                 )
-                for dim in range(dimension)
-            ]
+            )
 
-            # Support for dask
-            if isinstance(weights[0], da.Array):
-                weights = da.array(weights)
+        weights = da.stack(weights)
+        weight_matrix = da.prod(weights, axis=0)
 
-            # TODO: Not only multiplication? e.g. Addition, minimum, maximum, average
-            weight = np.prod(weights, axis=0)
-            weight_matrix[source_index, :] = weight
+    #     for source_index in range(source_size):
+    #         weights = [
+    #             weight_by_distance(
+    #                 distance_matrices[dim][source_index, :],
+    #                 kernel_type[dim],
+    #                 bandwidth[dim],
+    #                 neighbour_count[dim],
+    #                 midpoint[dim],
+    #             )
+    #             for dim in range(dimension)
+    #         ]
+    #
+    #         # Support for dask
+    #         if isinstance(weights[0], da.Array):
+    #             weights = da.array(weights)
+    #
+    #         # TODO: Not only multiplication? e.g. Addition, minimum, maximum, average
+    #         weight = np.prod(weights, axis=0)
+    #         weight_matrix.append(weight)
+    #
+    # weight_matrix = np.stack(weight_matrix)
 
     # Normalization
 

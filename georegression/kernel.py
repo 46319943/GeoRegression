@@ -16,13 +16,13 @@ KERNEL_TYPE_ENUM = [
 
 
 def kernel_function(
-    distance_vector: np.ndarray, bandwidth: float, kernel_type: str
+    distance: np.ndarray, bandwidth: Union[float, list[float], np.ndarray], kernel_type: str
 ) -> np.ndarray:
     """
     Using kernel function to calculate the weight
 
     Args:
-        distance_vector: The distances to be weighted by kernel function.
+        distance: The distances to be weighted by kernel function. In vector or matrix form.
 
         bandwidth: parameter of the kernel function for specifying the decreasing level.
          For compact supported kernel, weight will be 0 if distance is larger than the bandwidth.
@@ -35,14 +35,14 @@ def kernel_function(
     """
 
     if isinstance(bandwidth, da.Array):
-        normalize_distance = distance_vector / bandwidth
+        normalize_distance = distance / bandwidth.reshape(-1, 1)
     else:
         # Only Box-Car kernel would be applied to zero bandwidth
         if bandwidth == 0:
             kernel_type = "boxcar"
-            normalize_distance = distance_vector
+            normalize_distance = distance
         else:
-            normalize_distance = distance_vector / bandwidth
+            normalize_distance = distance / bandwidth
 
     # Continuous kernel
     if kernel_type == "uniform":
@@ -65,13 +65,13 @@ def kernel_function(
 
     # compact support
     if kernel_type in ["linear", "boxcar", "bisquare", "tricube"]:
-        weight[distance_vector > bandwidth] = 0
+        weight[distance > bandwidth.reshape(-1, 1)] = 0
 
     return weight
 
 
 def adaptive_bandwidth(
-    distance_vector: np.ndarray,
+    distance: np.ndarray,
     neighbour_count: Union[int, float],
     midpoint: bool = False,
 ) -> float:
@@ -79,7 +79,7 @@ def adaptive_bandwidth(
     Find the bandwidth to include the specified number of neighbour.
 
     Args:
-        distance_vector: The distances to calculate the adaptive bandwidth.
+        distance: The distances to calculate the adaptive bandwidth. In vector or matrix form.
         neighbour_count: Number of the neighbour to include by the bandwidth.
          Use float to specify the percentage of the neighbour to include.
         midpoint: Whether extend the bandwidth to the midpoint of the neighbours.
@@ -88,14 +88,26 @@ def adaptive_bandwidth(
         float: return the distance to the K nearest neighbour
     """
 
-    if isinstance(distance_vector, da.Array):
+    if isinstance(distance, da.Array):
         # Support for dask array
         # Duplicated coordinate is not supported
         if isinstance(neighbour_count, float):
-            return da.percentile(distance_vector, neighbour_count)
+            # # Dask vector
+            # if len(distance.shape) == 1 or distance.shape[0] == 1:
+            #     return da.percentile(distance, neighbour_count)
+            #
+            # # Dask matrix
+            # else:
+            #     # Dask only support 1D percentile.
+            #     # Iterate through each row to calculate the percentile
+            #     bandwidth = []
+            #     for i in range(distance.shape[0]):
+            #         bandwidth.append(da.percentile(distance[i, :], neighbour_count))
+            #     return da.stack(bandwidth)
+            return distance[:, 0]
 
     # Duplicated coordinate considered as a single neighbour
-    distance_unique = np.unique(distance_vector)
+    distance_unique = np.unique(distance)
 
     # Convert percentage to absolute neighbour count
     if isinstance(neighbour_count, float):
