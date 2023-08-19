@@ -193,30 +193,9 @@ def compound_weight(
                 )
             )
 
-        weights = da.stack(weights)
-        weight_matrix = da.prod(weights, axis=0)
-
-    #     for source_index in range(source_size):
-    #         weights = [
-    #             weight_by_distance(
-    #                 distance_matrices[dim][source_index, :],
-    #                 kernel_type[dim],
-    #                 bandwidth[dim],
-    #                 neighbour_count[dim],
-    #                 midpoint[dim],
-    #             )
-    #             for dim in range(dimension)
-    #         ]
-    #
-    #         # Support for dask
-    #         if isinstance(weights[0], da.Array):
-    #             weights = da.array(weights)
-    #
-    #         # TODO: Not only multiplication? e.g. Addition, minimum, maximum, average
-    #         weight = np.prod(weights, axis=0)
-    #         weight_matrix.append(weight)
-    #
-    # weight_matrix = np.stack(weight_matrix)
+        weights = np.stack(weights)
+        # TODO: Not only multiplication? e.g. Addition, minimum, maximum, average
+        weight_matrix = np.prod(weights, axis=0)
 
     # Normalization
 

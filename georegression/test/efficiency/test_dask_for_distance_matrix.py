@@ -30,7 +30,7 @@ def test_dask_distance_matrix():
 
 
 def test_dask_compatiblity():
-    count = 10000
+    count = 50000
     distance_matrix = dask_distance.cdist(
         da.from_array(np.random.random((count, 2)), chunks={0: 4000, 1: 2}),
         da.from_array(np.random.random((count, 2)), chunks={0: 4000, 1: 2}),
@@ -63,12 +63,14 @@ def test_dask_map_block():
     distance_matrix = wait_on(distance_matrix)
 
     t1 = time()
+
     percentile = distance_matrix.map_blocks(
         np.percentile,
         50,
         axis=1,
-        keepdims=True,
-        chunks=(distance_matrix.chunksize[0], 1),
+        keepdims=False,
+        drop_axis=[1],
+        # chunks=(distance_matrix.chunksize[0]),
     )
 
     print(percentile.shape, percentile.compute())
@@ -141,5 +143,6 @@ if __name__ == "__main__":
     with get_task_stream(plot="save", filename="task-stream.html") as ts:
         # test_dask_distance_matrix()
         test_dask_compatiblity()
+        # test_dask_map_block()
 
     client.profile(filename="dask-profile.html")

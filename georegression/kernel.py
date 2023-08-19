@@ -16,7 +16,9 @@ KERNEL_TYPE_ENUM = [
 
 
 def kernel_function(
-    distance: np.ndarray, bandwidth: Union[float, list[float], np.ndarray], kernel_type: str
+    distance: np.ndarray,
+    bandwidth: Union[float, list[float], np.ndarray],
+    kernel_type: str,
 ) -> np.ndarray:
     """
     Using kernel function to calculate the weight
@@ -92,19 +94,14 @@ def adaptive_bandwidth(
         # Support for dask array
         # Duplicated coordinate is not supported
         if isinstance(neighbour_count, float):
-            # # Dask vector
-            # if len(distance.shape) == 1 or distance.shape[0] == 1:
-            #     return da.percentile(distance, neighbour_count)
-            #
-            # # Dask matrix
-            # else:
-            #     # Dask only support 1D percentile.
-            #     # Iterate through each row to calculate the percentile
-            #     bandwidth = []
-            #     for i in range(distance.shape[0]):
-            #         bandwidth.append(da.percentile(distance[i, :], neighbour_count))
-            #     return da.stack(bandwidth)
-            return distance[:, 0]
+            bandwidth = distance.map_blocks(
+                np.quantile,
+                neighbour_count,
+                axis=1,
+                keepdims=False,
+                drop_axis=1,
+            )
+            return bandwidth
 
     # Duplicated coordinate considered as a single neighbour
     distance_unique = np.unique(distance)
