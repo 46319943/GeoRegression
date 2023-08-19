@@ -1,5 +1,6 @@
 from time import time
 
+import dask
 import dask.array as da
 import dask_distance
 import numpy as np
@@ -36,8 +37,11 @@ def test_dask_compatiblity():
         da.from_array(np.random.random((count, 2)), chunks={0: 4000, 1: 2}),
         "euclidean",
     )
-    # distance_matrix = distance_matrix.rechunk({0: 'auto', 1: -1})
+    distance_matrix = distance_matrix.rechunk({0: "auto", 1: -1})
     distance_matrix = wait_on(distance_matrix)
+
+    # print(distance_matrix.mean().compute())
+    # return
 
     t1 = time()
     result = compound_weight([distance_matrix], "bisquare", neighbour_count=0.1)
@@ -139,6 +143,9 @@ if __name__ == "__main__":
     cluster = LocalCluster(local_directory="D:/dask")
     client = Client(cluster)
     print(client.dashboard_link)
+
+    # Set config of "distributed.comm.retry.count"
+    dask.config.set({"distributed.comm.retry.count": 10})
 
     with get_task_stream(plot="save", filename="task-stream.html") as ts:
         # test_dask_distance_matrix()
