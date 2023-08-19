@@ -31,13 +31,13 @@ def test_dask_distance_matrix():
 
 
 def test_dask_compatiblity():
-    count = 50000
+    count = 100000
     distance_matrix = dask_distance.cdist(
         da.from_array(np.random.random((count, 2)), chunks={0: 4000, 1: 2}),
         da.from_array(np.random.random((count, 2)), chunks={0: 4000, 1: 2}),
         "euclidean",
     )
-    distance_matrix = distance_matrix.rechunk({0: "auto", 1: -1})
+    # distance_matrix = distance_matrix.rechunk({0: "auto", 1: -1})
     distance_matrix = wait_on(distance_matrix)
 
     # print(distance_matrix.mean().compute())
@@ -83,7 +83,7 @@ def test_dask_map_block():
 
 
 def test_dask_reduction():
-    count = 10000
+    count = 100000
     distance_matrix = dask_distance.cdist(
         da.from_array(np.random.random((count, 2)), chunks={0: 4000, 1: 2}),
         da.from_array(np.random.random((count, 2)), chunks={0: 4000, 1: 2}),
@@ -139,13 +139,25 @@ def test_dask_reduction():
 
 
 if __name__ == "__main__":
-    # create local cluster and start distributed scheduler.
-    cluster = LocalCluster(local_directory="D:/dask")
-    client = Client(cluster)
-    print(client.dashboard_link)
-
     # Set config of "distributed.comm.retry.count"
     dask.config.set({"distributed.comm.retry.count": 10})
+    dask.config.set({"distributed.comm.timeouts.connect": 30})
+
+    dask.config.get("distributed.worker.memory.target")
+    dask.config.get("distributed.worker.memory.spill")
+    dask.config.get("distributed.worker.memory.pause")
+    dask.config.get("distributed.worker.memory.max-spill")
+    # dask.config.set({"distributed.worker.memory.pause": 0.5})
+    dask.config.set({"distributed.worker.memory.terminate": False})
+
+    # create local cluster and start distributed scheduler.
+    cluster = LocalCluster(
+        local_directory="D:/dask",
+        n_workers=4,
+        memory_limit="6GiB",
+    )
+    client = Client(cluster)
+    print(client.dashboard_link)
 
     with get_task_stream(plot="save", filename="task-stream.html") as ts:
         # test_dask_distance_matrix()
