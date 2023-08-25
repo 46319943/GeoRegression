@@ -1,5 +1,7 @@
 """
 Generate simulated data for testing purposes.
+A Bayesian Implementation of the Multiscale Geographically Weighted Regression Model with INLA
+https://doi.org/10.1080/24694452.2023.2187756
 """
 
 import random
