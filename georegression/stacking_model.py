@@ -150,8 +150,6 @@ class StackingWeightModel(WeightModel):
         cache_estimator = self.cache_estimator
         self.cache_estimator = True
 
-        t_local_start = time()
-
         if weight_matrix is None:
             weight_matrix = calculate_compound_weight_matrix(
                 coordinate_vector_list,
@@ -165,16 +163,19 @@ class StackingWeightModel(WeightModel):
                 self.p,
             )
 
+        t_neighbour_start = time()
+
         # Do the leave out neighbour sampling.
         neighbour_leave_out = None
         if self.neighbour_leave_out_rate is not None:
             neighbour_leave_out = sample_neighbour(
                 weight_matrix, self.neighbour_leave_out_rate
             )
-
             neighbour_leave_out = inverse_leave_out_neighbour(neighbour_leave_out)
-
             weight_matrix = weight_matrix * ~neighbour_leave_out
+
+        t_neighbour_end = time()
+        logger.debug("End of Neighbour leave out")
 
         super().fit(
             X,
@@ -182,9 +183,6 @@ class StackingWeightModel(WeightModel):
             coordinate_vector_list=coordinate_vector_list,
             weight_matrix=weight_matrix,
         )
-
-        t_local_end = time()
-        logger.debug("Local model fitting elapsed: %s", t_local_end - t_local_start)
 
         self.cache_estimator = cache_estimator
         self.meta_estimator_list = np.array(self.local_estimator_list)
@@ -197,10 +195,7 @@ class StackingWeightModel(WeightModel):
         t_second_order_start = time()
         second_neighbour_matrix = second_order_neighbour(neighbour_matrix)
         t_second_order_end = time()
-        logger.debug(
-            "Second order neighbour matrix elapsed: %s",
-            t_second_order_end - t_second_order_start,
-        )
+        logger.debug("End of Second order neighbour matrix")
 
         # Iterate the stacking estimator list to get the transformed X meta.
         # Cache all the data that will be used by neighbour estimators in one iteration by using second_neighbour_matrix.
@@ -213,14 +208,13 @@ class StackingWeightModel(WeightModel):
                 X[second_neighbour_matrix[i]]
             )
         t_predict_e = time()
-        logger.debug("Meta estimator prediction elapsed: %s", t_predict_e - t_predict_s)
+        logger.debug("End of Meta estimator prediction")
 
         t_transpose_start = time()
         X_meta_T = X_meta.transpose().copy(order="C")
         t_transpost_end = time()
         logger.debug(
-            "Transpose meta estimator prediction elapsed: %s",
-            t_transpost_end - t_transpose_start,
+            "End of Transpose meta estimator prediction",
         )
 
         local_stacking_predict = []
@@ -276,12 +270,27 @@ class StackingWeightModel(WeightModel):
             indexing_time = indexing_time + t_indexing_end - t_indexing_start
             stacking_time = stacking_time + t_stacking_end - t_stacking_start
 
-        logger.debug("Indexing time: %s", indexing_time)
-        logger.debug("Stacking time: %s", stacking_time)
-
         self.stacking_predict_ = local_stacking_predict
         self.llocv_stacking_ = r2_score(self.y_sample_, local_stacking_predict)
         self.local_estimator_list = local_stacking_estimator_list
+
+        # Log the time elapsed in a single line
+        logger.debug(
+            "Leave local out elapsed: %s \n"
+            "Time elapsed to fit stacking model: %s \n"
+            "Second order neighbour matrix elapsed: %s \n"
+            "Meta estimator prediction elapsed: %s \n"
+            "Transpose meta estimator prediction elapsed: %s \n"
+            "Indexing time: %s \n"
+            "Stacking time: %s \n",
+            t_neighbour_end - t_neighbour_start,
+            time() - t_neighbour_start,
+            t_second_order_end - t_second_order_start,
+            t_predict_e - t_predict_s,
+            t_transpost_end - t_transpose_start,
+            indexing_time,
+            stacking_time,
+        )
 
         return self
 
