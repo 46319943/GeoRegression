@@ -1,5 +1,6 @@
 import math
 from time import time
+from itertools import compress
 
 import numpy as np
 from numba import njit, prange
@@ -177,12 +178,12 @@ class StackingWeightModel(WeightModel):
             weight_matrix=weight_matrix,
         )
 
-        self.cache_estimator = cache_estimator
-        self.meta_estimator_list = np.array(self.local_estimator_list)
-        self.local_estimator_list = None
-
         neighbour_matrix = self.weight_matrix_ > 0
         weight_matrix = self.weight_matrix_
+
+        self.cache_estimator = cache_estimator
+        self.meta_estimator_list = self.local_estimator_list
+        self.local_estimator_list = None
 
         # Indicator of input data for each local estimator.
         t_second_order_start = time()
@@ -255,8 +256,10 @@ class StackingWeightModel(WeightModel):
             local_stacking_predict.append(
                 final_estimator.predict(np.expand_dims(X_meta[i, neighbour_sample], 0))
             )
+
             stacking_estimator = StackingEstimator(
-                final_estimator, self.meta_estimator_list[neighbour_sample]
+                final_estimator,
+                list(compress(self.meta_estimator_list, neighbour_sample)),
             )
             local_stacking_estimator_list.append(stacking_estimator)
 
