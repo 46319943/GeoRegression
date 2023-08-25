@@ -74,6 +74,13 @@ def sample_neighbour(weight_matrix, sample_rate=0.5):
     return neighbour_matrix_sampled.astype(bool)
 
 
+def inverse_leave_out_neighbour(neighbour_sample):
+    neighbour_left_out = np.zeros_like(neighbour_sample)
+    for i in range(neighbour_sample.shape[0]):
+        neighbour_left_out[neighbour_sample[i], i] = 1
+    return neighbour_left_out.astype(bool)
+
+
 class StackingWeightModel(WeightModel):
     def __init__(
         self,
@@ -163,6 +170,9 @@ class StackingWeightModel(WeightModel):
             neighbour_leave_out = sample_neighbour(
                 weight_matrix, self.neighbour_leave_out_rate
             )
+
+            neighbour_leave_out = inverse_leave_out_neighbour(neighbour_leave_out)
+
             weight_matrix = weight_matrix * ~neighbour_leave_out
 
         super().fit(
