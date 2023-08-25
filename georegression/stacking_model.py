@@ -75,13 +75,6 @@ def sample_neighbour(weight_matrix, sample_rate=0.5):
     return neighbour_matrix_sampled.astype(bool)
 
 
-def inverse_leave_out_neighbour(neighbour_sample):
-    neighbour_left_out = np.zeros_like(neighbour_sample)
-    for i in range(neighbour_sample.shape[0]):
-        neighbour_left_out[neighbour_sample[i], i] = 1
-    return neighbour_left_out.astype(bool)
-
-
 class StackingWeightModel(WeightModel):
     def __init__(
         self,
@@ -171,7 +164,7 @@ class StackingWeightModel(WeightModel):
             neighbour_leave_out = sample_neighbour(
                 weight_matrix, self.neighbour_leave_out_rate
             )
-            neighbour_leave_out = inverse_leave_out_neighbour(neighbour_leave_out)
+            neighbour_leave_out = neighbour_leave_out.T
             weight_matrix = weight_matrix * ~neighbour_leave_out
 
         t_neighbour_end = time()
@@ -277,14 +270,12 @@ class StackingWeightModel(WeightModel):
         # Log the time elapsed in a single line
         logger.debug(
             "Leave local out elapsed: %s \n"
-            "Time elapsed to fit stacking model: %s \n"
             "Second order neighbour matrix elapsed: %s \n"
             "Meta estimator prediction elapsed: %s \n"
             "Transpose meta estimator prediction elapsed: %s \n"
             "Indexing time: %s \n"
             "Stacking time: %s \n",
             t_neighbour_end - t_neighbour_start,
-            time() - t_neighbour_start,
             t_second_order_end - t_second_order_start,
             t_predict_e - t_predict_s,
             t_transpost_end - t_transpose_start,
