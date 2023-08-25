@@ -66,8 +66,9 @@ def sample_neighbour(weight_matrix, sample_rate=0.5):
         neighbour_matrix_sampled[
             i,
             np.random.choice(
-                np.nonzero(neighbour_matrix[i])[0], neighbour_count_sampled[i],
-                replace=False
+                np.nonzero(neighbour_matrix[i])[0],
+                neighbour_count_sampled[i],
+                replace=False,
             ),
         ] = 1
 
@@ -236,7 +237,8 @@ class StackingWeightModel(WeightModel):
             neighbour_sample = neighbour_matrix[i]
 
             if self.neighbour_leave_out_rate is not None:
-                neighbour_sample = neighbour_leave_out[i]
+                # neighbour_sample = neighbour_leave_out[i]
+                neighbour_sample = neighbour_leave_out[:, i]
 
             # Sample from neighbour bool matrix to get sampled neighbour index.
             if self.estimator_sample_rate is not None:
