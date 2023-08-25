@@ -1,5 +1,6 @@
 from time import time as t
 
+import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression, Ridge, RidgeCV
 from sklearn.tree import DecisionTreeRegressor
@@ -139,6 +140,7 @@ def test_estimator_sample():
     model.fit(X, y_true, [xy_vector, time])
     print(f"{model.llocv_score_}, {model.llocv_stacking_}")
 
+
 def test_performance():
     local_estimator = DecisionTreeRegressor(splitter="random", max_depth=2)
     distance_measure = "euclidean"
@@ -158,7 +160,7 @@ def test_performance():
         neighbour_count,
         midpoint,
         p,
-        neighbour_leave_out_rate=0.1,
+        neighbour_leave_out_rate=0.2,
         # estimator_sample_rate=0.1,
     )
 
@@ -176,7 +178,7 @@ def test_performance():
     # neighbour_count = 0.1 neighbour_leave_out_rate=0.1 15.770824909210205 0.7680928707118291 0.8556669876852211
 
     estimator = WeightModel(
-        RandomForestRegressor(n_estimators=5),
+        RandomForestRegressor(n_estimators=50),
         distance_measure,
         kernel_type,
         distance_ratio,
@@ -208,10 +210,49 @@ def test_performance():
     # neighbour_count = 0.1 RidgeCV 4.276575803756714 0.800494195041368
 
 
+def test_stacking_not_leaking():
+    # local_estimator = DecisionTreeRegressor(splitter="random", max_depth=5)
+    local_estimator = DecisionTreeRegressor(max_depth=3)
+    distance_measure = "euclidean"
+    kernel_type = "bisquare"
+    distance_ratio = None
+    bandwidth = None
+    midpoint = True
+    p = None
+
+    for neighbour_count in np.arange(0.05, 0.35, 0.05):
+        for leave_out_rate in np.arange(0.05, 0.35, 0.05):
+            estimator = StackingWeightModel(
+                local_estimator,
+                distance_measure,
+                kernel_type,
+                distance_ratio,
+                bandwidth,
+                neighbour_count,
+                midpoint,
+                p,
+                neighbour_leave_out_rate=leave_out_rate,
+            )
+
+            t1 = t()
+            estimator.fit(X, y_true, [xy_vector, time])
+            t2 = t()
+            print(
+                "neighbour_count =", neighbour_count, "leave_out_rate =", leave_out_rate
+            )
+            print(
+                "time =",
+                t2 - t1,
+                "llocv_score =",
+                estimator.llocv_score_,
+                "llocv_stacking =",
+                estimator.llocv_stacking_,
+            )
 
 
 if __name__ == "__main__":
     # test_stacking()
     # test_alpha()
     # test_estimator_sample()
-    test_performance()
+    # test_performance()
+    test_stacking_not_leaking()
