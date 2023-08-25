@@ -39,7 +39,9 @@ def calculate_compound_weight_matrix(
 
     """
 
-    return compound_weight(
+    t_start = time()
+
+    compound_weight_matrix = compound_weight(
         distance_matrices(
             source_coordinate_vector_list,
             target_coordinate_vector_list,
@@ -52,6 +54,10 @@ def calculate_compound_weight_matrix(
         neighbour_count,
         midpoint,
     )
+
+    logger.debug(f"Time taken to calculate compound weight matrix: {time() - t_start}")
+
+    return compound_weight_matrix
 
 
 def compound_weight(
@@ -195,11 +201,6 @@ def compound_weight(
     row_sum[row_sum == 0] = 1
     # Notice the axis of division
     weight_matrix_norm = weight_matrix / np.expand_dims(row_sum, 1)
-
-    t_end = time()
-    logger.debug(
-        f"Weight matrix calculate end {t_end}. Matrix shape {weight_matrix_norm.shape}"
-    )
 
     return weight_matrix_norm
 
