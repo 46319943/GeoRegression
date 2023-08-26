@@ -54,7 +54,7 @@ def test_robust_under_various_data():
     local_estimator = DecisionTreeRegressor(splitter="random", max_depth=2)
     distance_measure = "euclidean"
     kernel_type = "bisquare"
-    neighbour_count = 0.1
+    neighbour_count = 0.3
 
     model = StackingWeightModel(
         local_estimator,

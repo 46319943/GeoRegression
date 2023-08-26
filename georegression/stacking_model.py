@@ -73,7 +73,10 @@ def sample_neighbour(weight_matrix, sample_rate=0.5):
             ),
         ] = 1
 
-    return neighbour_matrix_sampled.astype(bool)
+    neighbour_matrix_sampled = neighbour_matrix_sampled.astype(bool)
+    np.fill_diagonal(neighbour_matrix_sampled, True)
+
+    return neighbour_matrix_sampled
 
 
 class StackingWeightModel(WeightModel):
@@ -165,8 +168,11 @@ class StackingWeightModel(WeightModel):
             neighbour_leave_out = sample_neighbour(
                 weight_matrix, self.neighbour_leave_out_rate
             )
+            # From (i,j) is that i-th observation will not be used to fit the j-th base estimator
+            # so that the j-th base estimator will be used for meta-estimator.
+            # To (j,i) is that j-th observation will not consider i-th observation as neighbour while fitting base estimator.
             neighbour_leave_out = neighbour_leave_out.T
-            weight_matrix = weight_matrix * ~neighbour_leave_out
+            # weight_matrix = weight_matrix * ~neighbour_leave_out
 
         t_neighbour_end = time()
         logger.debug("End of Neighbour leave out")
@@ -175,11 +181,12 @@ class StackingWeightModel(WeightModel):
             X,
             y,
             coordinate_vector_list=coordinate_vector_list,
-            weight_matrix=weight_matrix,
+            weight_matrix=weight_matrix * ~neighbour_leave_out,
+            # weight_matrix=weight_matrix,
         )
 
-        neighbour_matrix = self.weight_matrix_ > 0
-        weight_matrix = self.weight_matrix_
+        neighbour_matrix = weight_matrix > 0
+        np.fill_diagonal(neighbour_matrix, False)
 
         self.cache_estimator = cache_estimator
         self.meta_estimator_list = self.local_estimator_list
@@ -187,7 +194,9 @@ class StackingWeightModel(WeightModel):
 
         # Indicator of input data for each local estimator.
         t_second_order_start = time()
-        second_neighbour_matrix = second_order_neighbour(neighbour_matrix)
+        second_neighbour_matrix = second_order_neighbour(
+            neighbour_matrix, neighbour_leave_out
+        )
         t_second_order_end = time()
         logger.debug("End of Second order neighbour matrix")
 
@@ -198,9 +207,9 @@ class StackingWeightModel(WeightModel):
         t_predict_s = time()
         X_meta = np.zeros((self.N, self.N))
         for i in range(self.N):
-            X_meta[second_neighbour_matrix[i], i] = self.meta_estimator_list[i].predict(
-                X[second_neighbour_matrix[i]]
-            )
+            if second_neighbour_matrix[i].any():
+                X_meta[second_neighbour_matrix[i], i] = self.meta_estimator_list[i].predict(X[second_neighbour_matrix[i]])
+
         t_predict_e = time()
         logger.debug("End of Meta estimator prediction")
 

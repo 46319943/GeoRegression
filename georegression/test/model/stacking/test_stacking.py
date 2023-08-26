@@ -147,7 +147,7 @@ def test_performance():
     kernel_type = "bisquare"
     distance_ratio = None
     bandwidth = None
-    neighbour_count = 0.01
+    neighbour_count = 0.1
     midpoint = True
     p = None
 
@@ -174,8 +174,10 @@ def test_performance():
     # neighbour_count = 0.01 12.433058261871338 0.7264394281767108 0.9421304744738035
     # neighbour_count = 0.1 59.23662233352661 0.7549265112954625 0.8533792294300071
     # neighbour_count = 0.1 estimator_sample_rate=0.1 17.0358464717865 0.7530776263728781 0.8559844494270573
+    # After implement the neighbour leave out to fix the test leaking.
     # neighbour_count = 0.01 neighbour_leave_out_rate=0.1 9.614805459976196 0.7025745058476021 0.8849390576510993
     # neighbour_count = 0.1 neighbour_leave_out_rate=0.1 15.770824909210205 0.7680928707118291 0.8556669876852211
+    # After fixing the neighbour estimator selection bug.
     # neighbour_count = 0.1 neighbour_leave_out_rate=0.1 14.831573724746704 0.7644013832778737 0.8101877198579331
     # neighbour_count = 0.01 neighbour_leave_out_rate=0.1 9.51764440536499 0.7088130603052478 0.7641255806160333
 
@@ -189,7 +191,8 @@ def test_performance():
         midpoint,
         p,
     )
-    estimator.fit(X, y_true, [xy_vector])
+    t2 = t()
+    estimator.fit(X, y_true, [xy_vector, time])
     t3 = t()
 
     print(t3 - t2, estimator.llocv_score_)
@@ -200,7 +203,7 @@ def test_performance():
     # neighbour_count = 0.01 n_estimators=5  3.1212289333343506 0.7988055718383715
     # neighbour_count = 0.1 n_estimators=5  10.742109775543213 0.7971370484169908
     # neighbour_count = 0.1 n_estimators=50  87.76663708686829 0.8333164789667881
-    # neighbour_count = 0.01 n_estimators=50  87.76663708686829 0.8333164789667881
+    # neighbour_count = 0.01 n_estimators=50  13.869909524917603 0.8240376380492497
 
     estimator = WeightModel(
         RidgeCV(),
@@ -214,7 +217,7 @@ def test_performance():
     )
     # estimator.local_estimator = RidgeCV()
     # estimator.use_stacking = False
-    estimator.fit(X, y_true, [xy_vector])
+    estimator.fit(X, y_true, [xy_vector, time])
     t4 = t()
 
     print(t4 - t3, estimator.llocv_score_)
@@ -226,8 +229,9 @@ def test_performance():
 
 
 def test_stacking_not_leaking():
-    # local_estimator = DecisionTreeRegressor(splitter="random", max_depth=5)
-    local_estimator = DecisionTreeRegressor(max_depth=3)
+    # local_estimator = DecisionTreeRegressor(splitter="random", max_depth=2)
+    # local_estimator = DecisionTreeRegressor()
+    local_estimator = RandomForestRegressor(n_estimators=50)
     # local_estimator = RidgeCV()
     distance_measure = "euclidean"
     kernel_type = "bisquare"
@@ -265,21 +269,39 @@ def test_stacking_not_leaking():
     neighbour_count = 0.1
     leave_out_rate = 0.1
 
-    # fit_wrapper()
+    fit_wrapper()
 
-    for depth in range(1, 10):
-        local_estimator = DecisionTreeRegressor(max_depth=depth)
-        fit_wrapper()
+    estimator = WeightModel(
+        RandomForestRegressor(n_estimators=50),
+        distance_measure,
+        kernel_type,
+        distance_ratio,
+        bandwidth,
+        neighbour_count,
+        midpoint,
+        p,
+    )
+    t2 = t()
+    estimator.fit(X, y_true, [xy_vector, time])
+    t3 = t()
+    print(t3 - t2, estimator.llocv_score_)
+
+    for depth in range(1, 31, 2):
+        # local_estimator = DecisionTreeRegressor(max_depth=depth)
+        # fit_wrapper()
+        pass
 
     for neighbour_count in np.arange(0.05, 0.35, 0.05):
         for leave_out_rate in np.arange(0.05, 0.35, 0.05):
-            pass
             # fit_wrapper()
+            pass
 
+    # neighbour_count = 0.1 leave_out_rate = 0.1
+    # time = 59.72933077812195 llocv_score = 0.8093394316499596 llocv_stacking = 0.9620314987936546
 
 if __name__ == "__main__":
     # test_stacking()
     # test_alpha()
     # test_estimator_sample()
-    # test_performance()
-    test_stacking_not_leaking()
+    test_performance()
+    # test_stacking_not_leaking()
