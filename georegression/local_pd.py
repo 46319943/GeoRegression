@@ -17,6 +17,9 @@ def local_partial_dependence(local_estimator, X, weight):
     # Care more on the local range.
     # Unweighted points will dominate the tendency which may not be the interested one.
     # Only calculate the local ICE?
+    # Better explanation in ALE: the adverse consequences of extrapolation in PD plots
+    # Ref: Visualizing the Effects of Predictor Variables in Black Box Supervised Learning Models
+
 
     feature_count = X.shape[1]
 
