@@ -181,8 +181,20 @@ def compound_weight(
 
         weights = []
         for dim in range(dimension):
-            weights.append(
-                wait_on(
+            if isinstance(distance_matrices[0], da.Array):
+                weights.append(
+                    wait_on(
+                        weight_by_distance(
+                            distance_matrices[dim],
+                            kernel_type[dim],
+                            bandwidth[dim],
+                            neighbour_count[dim],
+                            midpoint[dim],
+                        )
+                    )
+                )
+            else:
+                weights.append(
                     weight_by_distance(
                         distance_matrices[dim],
                         kernel_type[dim],
@@ -191,7 +203,6 @@ def compound_weight(
                         midpoint[dim],
                     )
                 )
-            )
 
         weights = np.stack(weights)
         # TODO: Not only multiplication? e.g. Addition, minimum, maximum, average
