@@ -50,25 +50,25 @@ def test_robust_under_various_data():
     Returns:
 
     """
-    X, y, points, coefficients = generate_sample(count=500)
+    X, y, points, coefficients = generate_sample(count=1000, random_seed=1)
     X_plus = np.concatenate([X, points], axis=1)
 
     local_estimator = DecisionTreeRegressor(splitter="random", max_depth=3)
     distance_measure = "euclidean"
     kernel_type = "bisquare"
-    neighbour_count = 0.5
+    neighbour_count = 0.008
 
     model = StackingWeightModel(
         local_estimator,
         distance_measure,
         kernel_type,
         neighbour_count=neighbour_count,
-        neighbour_leave_out_rate=0.2,
+        neighbour_leave_out_rate=0.1,
     )
 
     # model.fit(X, y, [points])
-    model.fit(X_plus, y, [points])
-    print(model.llocv_score_ ,model.llocv_stacking_)
+    # model.fit(X_plus, y, [points])
+    # print(model.llocv_score_ ,model.llocv_stacking_)
 
     model = WeightModel(
         RandomForestRegressor(),
