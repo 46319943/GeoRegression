@@ -31,13 +31,15 @@ def test_dask_distance_matrix():
 
 
 def test_dask_compatiblity():
+    # 86 seconds for count=50000
+    # 680 seconds for count=100000
     count = 100000
     distance_matrix = dask_distance.cdist(
         da.from_array(np.random.random((count, 2)), chunks={0: 4000, 1: 2}),
         da.from_array(np.random.random((count, 2)), chunks={0: 4000, 1: 2}),
         "euclidean",
     )
-    # distance_matrix = distance_matrix.rechunk({0: "auto", 1: -1})
+    distance_matrix = distance_matrix.rechunk({0: "auto", 1: -1})
     distance_matrix = wait_on(distance_matrix)
 
     # print(distance_matrix.mean().compute())
@@ -89,6 +91,9 @@ def test_dask_reduction():
         da.from_array(np.random.random((count, 2)), chunks={0: 4000, 1: 2}),
         "euclidean",
     )
+
+    # 57.298909187316895 for rechunk
+    # 40.120853900909424 for no rechunk
     # distance_matrix = distance_matrix.rechunk({0: 'auto', 1: -1})
     distance_matrix = wait_on(distance_matrix)
 
@@ -152,7 +157,7 @@ if __name__ == "__main__":
 
     # create local cluster and start distributed scheduler.
     cluster = LocalCluster(
-        local_directory="D:/dask",
+        local_directory="F:/dask",
         n_workers=4,
         memory_limit="6GiB",
     )
@@ -163,5 +168,6 @@ if __name__ == "__main__":
         # test_dask_distance_matrix()
         test_dask_compatiblity()
         # test_dask_map_block()
+        # test_dask_reduction()
 
     client.profile(filename="dask-profile.html")
