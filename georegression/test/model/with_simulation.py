@@ -57,19 +57,19 @@ def test_robust_under_various_data():
     distance_measure = "euclidean"
     kernel_type = "bisquare"
 
-    neighbour_count = 0.008
+    neighbour_count = 0.01
 
     model = StackingWeightModel(
         local_estimator,
         distance_measure,
         kernel_type,
         neighbour_count=neighbour_count,
-        neighbour_leave_out_rate=0.1,
+        neighbour_leave_out_rate=0.2,
     )
 
-    # model.fit(X, y, [points])
-    # model.fit(X_plus, y, [points])
-    # print(model.llocv_score_ ,model.llocv_stacking_)
+    model.fit(X, y, [points])
+    model.fit(X_plus, y, [points])
+    print(model.llocv_score_ ,model.llocv_stacking_)
 
     model = WeightModel(
         RandomForestRegressor(),
@@ -82,13 +82,27 @@ def test_robust_under_various_data():
     model.fit(X_plus, y, [points])
     print(model.llocv_score_)
 
-    model = RandomForestRegressor(oob_score=True, n_estimators=1500)
+    model = RandomForestRegressor(oob_score=True, n_estimators=5500, n_jobs=-1)
     model.fit(X, y)
     print(model.oob_score_)
 
 
     model.fit(X_plus, y)
     print(model.oob_score_)
+
+    model = LinearRegression()
+    model.fit(X_plus, y)
+    print(model.score(X_plus, y))
+
+    model = WeightModel(
+        LinearRegression(),
+        distance_measure,
+        kernel_type,
+        neighbour_count=neighbour_count,
+    )
+
+    model.fit(X_plus, y, [points])
+    print(model.llocv_score_)
 
     """
     count=500
