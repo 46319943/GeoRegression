@@ -1,3 +1,4 @@
+import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.tree import DecisionTreeRegressor
@@ -49,12 +50,13 @@ def test_robust_under_various_data():
     Returns:
 
     """
-    X, y, points, coefficients = generate_sample(count=500)
+    X, y, points, coefficients = generate_sample(count=1000, random_seed=1)
+    X_plus = np.concatenate([X, points], axis=1)
 
-    local_estimator = DecisionTreeRegressor(splitter="random", max_depth=2)
+    local_estimator = DecisionTreeRegressor(splitter="random", max_depth=3)
     distance_measure = "euclidean"
     kernel_type = "bisquare"
-    neighbour_count = 0.4
+    neighbour_count = 0.008
 
     model = StackingWeightModel(
         local_estimator,
@@ -64,8 +66,9 @@ def test_robust_under_various_data():
         neighbour_leave_out_rate=0.1,
     )
 
-    model.fit(X, y, [points])
-    print(model.llocv_stacking_)
+    # model.fit(X, y, [points])
+    # model.fit(X_plus, y, [points])
+    # print(model.llocv_score_ ,model.llocv_stacking_)
 
     model = WeightModel(
         RandomForestRegressor(),
@@ -74,11 +77,16 @@ def test_robust_under_various_data():
         neighbour_count=neighbour_count,
     )
 
-    model.fit(X, y, [points])
+    # model.fit(X, y, [points])
+    model.fit(X_plus, y, [points])
     print(model.llocv_score_)
 
-    model = RandomForestRegressor(oob_score=True)
+    model = RandomForestRegressor(oob_score=True, n_estimators=1500)
     model.fit(X, y)
+    print(model.oob_score_)
+
+
+    model.fit(X_plus, y)
     print(model.oob_score_)
 
     """
