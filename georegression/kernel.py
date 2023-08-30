@@ -36,15 +36,11 @@ def kernel_function(
 
     """
 
-    if isinstance(bandwidth, da.Array):
-        normalize_distance = distance / bandwidth.reshape(-1, 1)
-    else:
-        # Only Box-Car kernel would be applied to zero bandwidth
-        if bandwidth == 0:
-            kernel_type = "boxcar"
-            normalize_distance = distance
-        else:
-            normalize_distance = distance / bandwidth
+    # Reshape bandwidth to have proper broadcasting in division.
+    bandwidth = bandwidth.reshape((-1, 1))
+
+    normalize_distance = distance / bandwidth
+    np.nan_to_num(normalize_distance, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
 
     # Continuous kernel
     if kernel_type == "uniform":
@@ -67,7 +63,7 @@ def kernel_function(
 
     # compact support
     if kernel_type in ["linear", "boxcar", "bisquare", "tricube"]:
-        weight[distance > bandwidth.reshape(-1, 1)] = 0
+        weight[distance > bandwidth] = 0
 
     return weight
 
@@ -103,26 +99,16 @@ def adaptive_bandwidth(
             )
             return bandwidth
 
-    # Duplicated coordinate considered as a single neighbour
-    distance_unique = np.unique(distance)
-
-    # Convert percentage to absolute neighbour count
-    if isinstance(neighbour_count, float):
-        neighbour_count = math.ceil(distance_unique.shape[0] * neighbour_count)
-
     if neighbour_count <= 0:
         raise Exception("Invalid neighbour count")
 
-    # Limit neighbour to valid count
-    if neighbour_count > distance_unique.shape[0]:
-        neighbour_count = distance_unique.shape[0]
-
-    bandwidth = np.partition(distance_unique, neighbour_count - 1)[neighbour_count - 1]
-
-    # Extend the bandwidth to the midpoint of the current and next neighbout.
-    if midpoint:
-        bandwidth_plus = np.partition(distance_unique, neighbour_count)[neighbour_count]
-        bandwidth = (bandwidth + bandwidth_plus) / 2
+    if isinstance(neighbour_count, float):
+        # percentile call the partition function internally,
+        bandwidth = np.quantile(distance, neighbour_count, axis=1, keepdims=False, method='median_unbiased')
+    elif isinstance(neighbour_count, int):
+        bandwidth = np.partition(distance, neighbour_count - 1)[neighbour_count - 1]
+    else:
+        raise Exception("Invalid neighbour count")
 
     return bandwidth
 
