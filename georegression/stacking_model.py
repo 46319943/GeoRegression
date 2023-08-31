@@ -90,7 +90,7 @@ class StackingWeightModel(WeightModel):
         bandwidth=None,
         neighbour_count=None,
         midpoint=None,
-        p=None,
+        distance_args=None,
         # Model param
         leave_local_out=True,
         sample_local_rate=None,
@@ -111,7 +111,7 @@ class StackingWeightModel(WeightModel):
             bandwidth=bandwidth,
             neighbour_count=neighbour_count,
             midpoint=midpoint,
-            p=p,
+            distance_args=distance_args,
             # Model param
             leave_local_out=leave_local_out,
             sample_local_rate=sample_local_rate,
@@ -148,17 +148,8 @@ class StackingWeightModel(WeightModel):
         self.cache_estimator = True
 
         if weight_matrix is None:
-            weight_matrix = calculate_compound_weight_matrix(
-                coordinate_vector_list,
-                coordinate_vector_list,
-                self.distance_measure,
-                self.kernel_type,
-                self.distance_ratio,
-                self.bandwidth,
-                self.neighbour_count,
-                self.midpoint,
-                self.p,
-            )
+            weight_matrix = calculate_compound_weight_matrix(coordinate_vector_list, coordinate_vector_list, self.distance_measure, self.kernel_type, self.distance_ratio, self.bandwidth,
+                                                             self.neighbour_count, self.distance_args)
 
         t_neighbour_start = time()
 

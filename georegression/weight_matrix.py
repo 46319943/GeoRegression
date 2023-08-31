@@ -10,17 +10,9 @@ from georegression.distance_utils import distance_matrices
 from georegression.kernel import kernel_function, adaptive_kernel
 
 
-def calculate_compound_weight_matrix(
-    source_coordinate_vector_list: list[np.ndarray],
-    target_coordinate_vector_list: list[np.ndarray],
-    distance_measure: Union[str, list[str]],
-    kernel_type: Union[str, list[str]],
-    distance_ratio: Union[float, list[float]] = None,
-    bandwidth: Union[float, list[float]] = None,
-    neighbour_count: Union[float, list[float]] = None,
-    midpoint: Union[bool, list[bool]] = None,
-    distance_args: Union[dict, list[dict]] = None,
-) -> np.ndarray:
+def calculate_compound_weight_matrix(source_coordinate_vector_list: list[np.ndarray], target_coordinate_vector_list: list[np.ndarray], distance_measure: Union[str, list[str]],
+                                     kernel_type: Union[str, list[str]], distance_ratio: Union[float, list[float]] = None, bandwidth: Union[float, list[float]] = None,
+                                     neighbour_count: Union[float, list[float]] = None, distance_args: Union[dict, list[dict]] = None) -> np.ndarray:
     """
     Iterate over each source-target pair to get weight matrix.
     Each row represent each source. Each column represent each target.
@@ -34,7 +26,6 @@ def calculate_compound_weight_matrix(
         distance_ratio:
         bandwidth:
         neighbour_count:
-        midpoint:
         distance_args:
 
     Returns:
@@ -43,33 +34,20 @@ def calculate_compound_weight_matrix(
 
     t_start = time()
 
-    compound_weight_matrix = compound_weight(
-        distance_matrices(
-            source_coordinate_vector_list,
-            target_coordinate_vector_list,
-            distance_measure,
-            distance_args,
-        ),
-        kernel_type,
-        distance_ratio,
-        bandwidth,
-        neighbour_count,
-        midpoint,
-    )
+    compound_weight_matrix = compound_weight(distance_matrices(
+        source_coordinate_vector_list,
+        target_coordinate_vector_list,
+        distance_measure,
+        distance_args,
+    ), kernel_type, distance_ratio, bandwidth, neighbour_count)
 
     logger.debug(f"Time taken to calculate compound weight matrix: {time() - t_start}")
 
     return compound_weight_matrix
 
 
-def compound_weight(
-    distance_matrices: list[np.ndarray],
-    kernel_type: Union[str, list[str]],
-    distance_ratio: Union[float, list[float], None] = None,
-    bandwidth: Union[float, list[float], None] = None,
-    neighbour_count: Union[float, list[float], None] = None,
-    midpoint: Union[bool, list[bool], None] = None,
-) -> Union[np.ndarray, da.array]:
+def compound_weight(distance_matrices: list[np.ndarray], kernel_type: Union[str, list[str]], distance_ratio: Union[float, list[float], None] = None, bandwidth: Union[float, list[float], None] = None,
+                    neighbour_count: Union[float, list[float], None] = None) -> Union[np.ndarray, da.array]:
     """
     Calculate weights for each coordinate vector (e.g. location coordinate vector or time coordinate vector)
     and integrate the weights of each coordinate vector to one weight
@@ -89,7 +67,6 @@ def compound_weight(
         distance_ratio:
         bandwidth:
         neighbour_count:
-        midpoint:
         p:
 
     Returns:
@@ -133,8 +110,6 @@ def compound_weight(
         if isinstance(neighbour_count, list):
             raise Exception("Neighbour count cannot be list while integrating distance")
 
-        if isinstance(midpoint, list):
-            raise Exception("Midpoint cannot be list while integrating distance")
 
         # TODO: Normalization step should be considered.
 
@@ -156,9 +131,7 @@ def compound_weight(
                 np.array(distances).T, np.array(distance_ratio, ndmin=2).T
             )
 
-            weight = weight_by_distance(
-                distance, kernel_type, bandwidth, neighbour_count, midpoint
-            )
+            weight = weight_by_distance(distance, kernel_type, bandwidth, neighbour_count)
 
             weight_matrix.append(weight)
 
@@ -174,8 +147,6 @@ def compound_weight(
         if not isinstance(neighbour_count, list):
             neighbour_count = [neighbour_count] * dimension
 
-        if not isinstance(midpoint, list):
-            midpoint = [midpoint] * dimension
 
         # TODO: Also should check the dimension of the parameters.
 
@@ -184,24 +155,12 @@ def compound_weight(
             if isinstance(distance_matrices[0], da.Array):
                 weights.append(
                     wait_on(
-                        weight_by_distance(
-                            distance_matrices[dim],
-                            kernel_type[dim],
-                            bandwidth[dim],
-                            neighbour_count[dim],
-                            midpoint[dim],
-                        )
+                        weight_by_distance(distance_matrices[dim], kernel_type[dim], bandwidth[dim], neighbour_count[dim])
                     )
                 )
             else:
                 weights.append(
-                    weight_by_distance(
-                        distance_matrices[dim],
-                        kernel_type[dim],
-                        bandwidth[dim],
-                        neighbour_count[dim],
-                        midpoint[dim],
-                    )
+                    weight_by_distance(distance_matrices[dim], kernel_type[dim], bandwidth[dim], neighbour_count[dim])
                 )
 
         weights = np.stack(weights)
@@ -222,9 +181,7 @@ def compound_weight(
     return weight_matrix_norm
 
 
-def weight_by_distance(
-    distance_vector, kernel_type, bandwidth=None, neighbour_count=None, midpoint=False
-):
+def weight_by_distance(distance_vector, kernel_type, bandwidth=None, neighbour_count=None):
     """
     Using fixed kernel(bandwidth provided) or adaptive kernel(neighbour count provided)
     to calculate the weight based on the distance vector.
@@ -234,7 +191,6 @@ def weight_by_distance(
         kernel_type:
         bandwidth:
         neighbour_count:
-        midpoint: Whether extend the bandwidth while using adaptive kernel
 
     Returns:
 
@@ -243,9 +199,7 @@ def weight_by_distance(
     if bandwidth is not None and neighbour_count is None:
         weight = kernel_function(distance_vector, bandwidth, kernel_type)
     elif bandwidth is None and neighbour_count is not None:
-        weight = adaptive_kernel(
-            distance_vector, neighbour_count, kernel_type, midpoint
-        )
+        weight = adaptive_kernel(distance_vector, neighbour_count, kernel_type)
     else:
         raise Exception(
             "Choose bandwidth for fixed kernel or neighbour count for adaptive kernel"

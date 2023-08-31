@@ -131,7 +131,7 @@ class WeightModel(BaseEstimator, RegressorMixin):
                  bandwidth=None,
                  neighbour_count=None,
                  midpoint=None,
-                 p=None,
+                 distance_args=None,
                  # Model param
                  leave_local_out=True,
                  sample_local_rate=None,
@@ -148,7 +148,7 @@ class WeightModel(BaseEstimator, RegressorMixin):
         self.bandwidth = bandwidth
         self.neighbour_count = neighbour_count
         self.midpoint = midpoint
-        self.p = p
+        self.distance_args = distance_args
         self.leave_local_out = leave_local_out
         self.sample_local_rate = sample_local_rate
         self.cache_data = cache_data
@@ -219,15 +219,8 @@ class WeightModel(BaseEstimator, RegressorMixin):
             self.coordinate_vector_dimension_ = len(coordinate_vector_list)
 
         if weight_matrix is None:
-            weight_matrix = calculate_compound_weight_matrix(coordinate_vector_list,
-                                                             coordinate_vector_list,
-                                                             self.distance_measure,
-                                                             self.kernel_type,
-                                                             self.distance_ratio,
-                                                             self.bandwidth,
-                                                             self.neighbour_count,
-                                                             self.midpoint,
-                                                             self.p)
+            weight_matrix = calculate_compound_weight_matrix(coordinate_vector_list, coordinate_vector_list, self.distance_measure, self.kernel_type, self.distance_ratio, self.bandwidth,
+                                                             self.neighbour_count, self.distance_args)
         self.weight_matrix_ = weight_matrix
         # Set the diagonal value of the weight matrix to exclude the local location to get CV score
         if self.leave_local_out:
@@ -297,14 +290,8 @@ class WeightModel(BaseEstimator, RegressorMixin):
             pass
 
         if weight_matrix is None:
-            weight_matrix = calculate_compound_weight_matrix(coordinate_vector_list, self.coordinate_vector_list,
-                                                             self.distance_measure,
-                                                             self.kernel_type,
-                                                             self.distance_ratio,
-                                                             self.bandwidth,
-                                                             self.neighbour_count,
-                                                             self.midpoint,
-                                                             self.p)
+            weight_matrix = calculate_compound_weight_matrix(coordinate_vector_list, self.coordinate_vector_list, self.distance_measure, self.kernel_type, self.distance_ratio, self.bandwidth,
+                                                             self.neighbour_count, self.distance_args)
 
         return np.sum(weight_matrix * local_predict.T, axis=1)
 
@@ -331,14 +318,8 @@ class WeightModel(BaseEstimator, RegressorMixin):
             raise Exception('At least one of coordinate_vector_list or weight_matrix should be provided')
 
         if weight_matrix is None:
-            weight_matrix = calculate_compound_weight_matrix(coordinate_vector_list, self.coordinate_vector_list,
-                                                             self.distance_measure,
-                                                             self.kernel_type,
-                                                             self.distance_ratio,
-                                                             self.bandwidth,
-                                                             self.neighbour_count,
-                                                             self.midpoint,
-                                                             self.p)
+            weight_matrix = calculate_compound_weight_matrix(coordinate_vector_list, self.coordinate_vector_list, self.distance_measure, self.kernel_type, self.distance_ratio, self.bandwidth,
+                                                             self.neighbour_count, self.distance_args)
 
         N = X.shape[0]
 

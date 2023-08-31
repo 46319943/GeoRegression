@@ -68,11 +68,7 @@ def kernel_function(
     return weight
 
 
-def adaptive_bandwidth(
-    distance: np.ndarray,
-    neighbour_count: Union[int, float],
-    midpoint: bool = False,
-) -> float:
+def adaptive_bandwidth(distance: np.ndarray, neighbour_count: Union[int, float]) -> float:
     """
     Find the bandwidth to include the specified number of neighbour.
 
@@ -80,7 +76,6 @@ def adaptive_bandwidth(
         distance: The distances to calculate the adaptive bandwidth. In vector or matrix form.
         neighbour_count: Number of the neighbour to include by the bandwidth.
          Use float to specify the percentage of the neighbour to include.
-        midpoint: Whether extend the bandwidth to the midpoint of the neighbours.
 
     Returns:
         float: return the distance to the K nearest neighbour
@@ -113,12 +108,7 @@ def adaptive_bandwidth(
     return bandwidth
 
 
-def adaptive_kernel(
-    distance_vector: np.ndarray,
-    neighbour_count: Union[int, float],
-    kernel_type: str,
-    midpoint: bool = False,
-) -> np.ndarray:
+def adaptive_kernel(distance_vector: np.ndarray, neighbour_count: Union[int, float], kernel_type: str) -> np.ndarray:
     """
     Deduce the bandwidth from the neighbour count and calculate weight using kernel function.
 
@@ -126,11 +116,10 @@ def adaptive_kernel(
         distance_vector:
         neighbour_count:
         kernel_type:
-        midpoint:
 
     Returns:
 
     """
 
-    bandwidth = adaptive_bandwidth(distance_vector, neighbour_count, midpoint)
+    bandwidth = adaptive_bandwidth(distance_vector, neighbour_count)
     return kernel_function(distance_vector, bandwidth, kernel_type)
