@@ -32,30 +32,40 @@ def union1d_wrapper(arr1, arr2):
 
 @njit()
 def second_neighbour_matrix_numba(indptr, indices):
-    # second_neighbour_indices_list = []
-    for row_index in range(len(indptr) - 1):
-        column_indices = indices[indptr[row_index]:indptr[row_index + 1]]
-        second_neighbour_final = []
-        for column_index in column_indices:
-            second_neighbour_indices = indices[
-                indptr[column_index] : indptr[column_index + 1]
-            ]
-            second_neighbour_final.append(second_neighbour_indices)
-        # if len(second_neighbour_final) == 0:
-        #     r = np.empty(0, dtype=np.int32)
-        # else:
-        #     r = reduce(union1d_wrapper, second_neighbour_final)
-        # second_neighbour_indices_list.append(r)
+    """
+    TODO: More deep understanding of the numba is required.
 
-    # return second_neighbour_indices_list
+    Args:
+        indptr ():
+        indices ():
+
+    Returns:
+
+    """
+
+    N = len(indptr) - 1
+    second_neighbour_matrix = np.zeros((N, N))
+    for row_index in range(N):
+        neighbour_indices = indices[indptr[row_index]:indptr[row_index + 1]]
+        second_neighbour_indices_union = np.zeros((N,))
+        for neighbour_index in neighbour_indices:
+            second_neighbour_indices = indices[
+                indptr[neighbour_index] : indptr[neighbour_index + 1]
+            ]
+            for second_neighbour_index in second_neighbour_indices:
+                second_neighbour_indices_union[second_neighbour_index] = True
+
+        second_neighbour_matrix[row_index] = second_neighbour_indices_union
+
+    return second_neighbour_matrix
 
 def test_second_neighbour_matrix():
-    points = np.random.random((1000, 2))
+    points = np.random.random((10000, 2))
     distance_matrix = cdist(points, points)
-    neighbour_matrix = csr_array(distance_matrix > 0.8)
+    neighbour_matrix = csr_array(distance_matrix > 0.95)
 
     t1 = time.time()
-    r = second_neighbour_matrix(neighbour_matrix)
+    # r = second_neighbour_matrix(neighbour_matrix)
     t2 = time.time()
     print(t2 - t1)
 
@@ -65,6 +75,8 @@ def test_second_neighbour_matrix():
     r = second_neighbour_matrix_numba(neighbour_matrix.indptr, neighbour_matrix.indices)
     t4 = time.time()
     print(t4 - t3)
+
+    print()
 
 
 def bool_type():

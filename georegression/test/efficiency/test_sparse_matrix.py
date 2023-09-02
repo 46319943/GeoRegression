@@ -48,14 +48,14 @@ def test_njit():
     pass
 
 def test_second_order_neighbour():
-    points = np.random.random((1000, 2))
+    points = np.random.random((10000, 2))
     distance_matrix = cdist(points, points)
-    neighbour_matrix = distance_matrix > 0.8
+    neighbour_matrix = distance_matrix > 0.95
 
     m = neighbour_matrix
     s = csr_array(m)
     t1 = time.time()
-    r = second_order_neighbour_sparse(s)
+    # r = second_order_neighbour_sparse(s)
     t2 = time.time()
     print(t2 - t1)
 
