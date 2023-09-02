@@ -59,6 +59,33 @@ def second_neighbour_matrix_numba(indptr, indices):
 
     return second_neighbour_matrix
 
+
+@njit()
+def second_neighbour_matrix_numba_2(indptr, indices):
+    """
+    Return in sparse format.
+    """
+
+    indices_list = []
+    N = len(indptr) - 1
+    # second_neighbour_matrix = np.zeros((N, N))
+    for row_index in range(N):
+        neighbour_indices = indices[indptr[row_index]:indptr[row_index + 1]]
+        second_neighbour_indices_union = np.zeros((N,))
+        for neighbour_index in neighbour_indices:
+            second_neighbour_indices = indices[
+                indptr[neighbour_index] : indptr[neighbour_index + 1]
+            ]
+            for second_neighbour_index in second_neighbour_indices:
+                second_neighbour_indices_union[second_neighbour_index] = True
+
+        second_neighbour_indices_union = np.nonzero(second_neighbour_indices_union)[0]
+        indices_list.append(second_neighbour_indices_union)
+
+        # second_neighbour_matrix[row_index] = second_neighbour_indices_union
+
+    return indices_list
+
 def test_second_neighbour_matrix():
     points = np.random.random((10000, 2))
     distance_matrix = cdist(points, points)
@@ -75,6 +102,13 @@ def test_second_neighbour_matrix():
     r = second_neighbour_matrix_numba(neighbour_matrix.indptr, neighbour_matrix.indices)
     t4 = time.time()
     print(t4 - t3)
+
+    r = second_neighbour_matrix_numba_2(neighbour_matrix.indptr, neighbour_matrix.indices)
+
+    t5 = time.time()
+    r = second_neighbour_matrix_numba_2(neighbour_matrix.indptr, neighbour_matrix.indices)
+    t6 = time.time()
+    print(t6 - t5)
 
     print()
 

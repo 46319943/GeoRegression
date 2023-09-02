@@ -224,7 +224,7 @@ class WeightModel(BaseEstimator, RegressorMixin):
         self.weight_matrix_ = weight_matrix
         # Set the diagonal value of the weight matrix to exclude the local location to get CV score
         if self.leave_local_out:
-            if isinstance(self.neighbour_count, np.ndarray):
+            if isinstance(self.weight_matrix_, np.ndarray):
                 np.fill_diagonal(self.weight_matrix_, 0)
             else:
                 self.weight_matrix_.setdiag(0)

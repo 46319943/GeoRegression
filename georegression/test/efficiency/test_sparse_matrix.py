@@ -110,5 +110,5 @@ def test_stacking_compatibility():
 if __name__ == '__main__':
     # test_sparse_operation()
     # test_compatibility()
-    # test_stacking_compatibility()
-    test_second_order_neighbour()
+    test_stacking_compatibility()
+    # test_second_order_neighbour()
