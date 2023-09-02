@@ -4,6 +4,7 @@ from itertools import compress
 
 import numpy as np
 from numba import njit, prange
+from scipy.sparse import csr_array
 from sklearn.base import BaseEstimator
 from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score
@@ -50,7 +51,10 @@ def sample_neighbour(weight_matrix, sample_rate=0.5):
 
     """
     neighbour_matrix = weight_matrix > 0
-    np.fill_diagonal(neighbour_matrix, False)
+    if isinstance(neighbour_matrix, np.ndarray):
+        np.fill_diagonal(neighbour_matrix, False)
+    else:
+        neighbour_matrix.setdiag(False)
     neighbour_count = np.sum(neighbour_matrix, axis=1)
     neighbour_count_sampled = np.ceil(neighbour_count * sample_rate).astype(int)
     neighbour_count_sampled[neighbour_count_sampled == 0] = 1
@@ -58,7 +62,8 @@ def sample_neighbour(weight_matrix, sample_rate=0.5):
         neighbour_count_sampled > neighbour_count
     ] = neighbour_count[neighbour_count_sampled > neighbour_count]
 
-    neighbour_matrix_sampled = np.zeros_like(neighbour_matrix)
+    neighbour_matrix_sampled = np.zeros(neighbour_matrix.shape, dtype=bool)
+    neighbour_matrix_sampled = csr_array(neighbour_matrix_sampled)
 
     # Set fixed random seed.
     np.random.seed(0)
@@ -67,14 +72,17 @@ def sample_neighbour(weight_matrix, sample_rate=0.5):
         neighbour_matrix_sampled[
             i,
             np.random.choice(
-                np.nonzero(neighbour_matrix[i])[0],
+                # nonzero [0] for 1d array; [1] for 2d array.
+                np.nonzero(neighbour_matrix[[i], :])[1],
                 neighbour_count_sampled[i],
                 replace=False,
             ),
-        ] = 1
+        ] = True
 
-    neighbour_matrix_sampled = neighbour_matrix_sampled.astype(bool)
-    np.fill_diagonal(neighbour_matrix_sampled, True)
+    if isinstance(neighbour_matrix_sampled, np.ndarray):
+        np.fill_diagonal(neighbour_matrix_sampled, True)
+    else:
+        neighbour_matrix_sampled.setdiag(True)
 
     return neighbour_matrix_sampled
 
@@ -168,16 +176,24 @@ class StackingWeightModel(WeightModel):
         t_neighbour_end = time()
         logger.debug("End of Neighbour leave out")
 
+        # TODO: Consider the phenomenon that weight_matrix_local[neighbour_leave_out.nonzero()] is not zero.
+
+        weight_matrix_local = weight_matrix.copy()
+        weight_matrix_local[neighbour_leave_out.nonzero()] = 0
+
         super().fit(
             X,
             y,
             coordinate_vector_list=coordinate_vector_list,
-            weight_matrix=weight_matrix * ~neighbour_leave_out,
+            weight_matrix=weight_matrix_local,
             # weight_matrix=weight_matrix,
         )
 
         neighbour_matrix = weight_matrix > 0
-        np.fill_diagonal(neighbour_matrix, False)
+        if isinstance(neighbour_matrix, np.ndarray):
+            np.fill_diagonal(neighbour_matrix, False)
+        else:
+            neighbour_matrix.setdiag(False)
 
         self.cache_estimator = cache_estimator
         self.meta_estimator_list = self.local_estimator_list

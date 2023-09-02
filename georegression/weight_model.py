@@ -70,8 +70,8 @@ def _fit(X, y, estimator_list, weight_matrix,
     # Parallel run the job. return [(prediction, estimator), (), ...]
     parallel_result = Parallel(n_jobs)(
         delayed(fit_local_estimator)(
-            estimator, X[neighbour_mask], y[neighbour_mask], local_x=x,
-            sample_weight=row_weight[neighbour_mask],
+            estimator, X[neighbour_mask.nonzero()[1]], y[neighbour_mask.nonzero()[1]], local_x=x,
+            sample_weight=row_weight[:, neighbour_mask.nonzero()[1]].toarray().flatten(),
             return_estimator=cache_estimator
         )
         for index, estimator, neighbour_mask, row_weight, x in
@@ -224,7 +224,10 @@ class WeightModel(BaseEstimator, RegressorMixin):
         self.weight_matrix_ = weight_matrix
         # Set the diagonal value of the weight matrix to exclude the local location to get CV score
         if self.leave_local_out:
-            np.fill_diagonal(self.weight_matrix_, 0)
+            if isinstance(self.neighbour_count, np.ndarray):
+                np.fill_diagonal(self.weight_matrix_, 0)
+            else:
+                self.weight_matrix_.setdiag(0)
 
         self.neighbour_matrix_ = self.weight_matrix_ > 0
 

@@ -40,7 +40,7 @@ def kernel_function(
     bandwidth = bandwidth.reshape((-1, 1))
 
     normalize_distance = distance / bandwidth
-    np.nan_to_num(normalize_distance, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
+    np.nan_to_num(normalize_distance, copy=False, nan=0.0, posinf=np.inf)
 
     # Continuous kernel
     if kernel_type == "uniform":
