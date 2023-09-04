@@ -4,6 +4,13 @@ import numpy as np
 
 
 @njit()
+def test_stack():
+    array = np.ones((2, 3))
+    list_of_array = [array] * 10
+    np.stack(list_of_array)
+
+
+@njit()
 def test_list_stack(i, array_to_be_stacked):
     shape = (i,) + array_to_be_stacked.shape
     list_of_array = [array_to_be_stacked] * i
@@ -22,6 +29,8 @@ def stack(list_of_array):
     return stacked_array
 
 if __name__ == "__main__":
+    test_stack()
+
     test_list_stack(10, np.ones((2, 3)))
 
     # Note that you have to use typed list provided by numba here.
