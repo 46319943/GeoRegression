@@ -2,7 +2,7 @@ import time
 from functools import reduce
 
 import numpy as np
-from numba import njit,prange
+from numba import njit,prange, boolean
 from scipy.sparse import csr_array
 from scipy.spatial.distance import cdist
 
@@ -44,7 +44,8 @@ def second_neighbour_matrix_numba(indptr, indices):
     """
 
     N = len(indptr) - 1
-    second_neighbour_matrix = np.zeros((N, N))
+    # Numba type instead of numpy type should be provided here.
+    second_neighbour_matrix = np.zeros((N, N), dtype=boolean)
     for row_index in range(N):
         neighbour_indices = indices[indptr[row_index]:indptr[row_index + 1]]
         second_neighbour_indices_union = np.zeros((N,))
@@ -68,7 +69,6 @@ def second_neighbour_matrix_numba_2(indptr, indices):
 
     indices_list = []
     N = len(indptr) - 1
-    # second_neighbour_matrix = np.zeros((N, N))
     for row_index in range(N):
         neighbour_indices = indices[indptr[row_index]:indptr[row_index + 1]]
         second_neighbour_indices_union = np.zeros((N,))
@@ -94,7 +94,6 @@ def second_neighbour_matrix_numba_loop(indptr, indices):
     N = len(indptr) - 1
     # Manually create the list with specified length to avoid parallel Mutating error.
     indices_list = [np.empty(0, dtype=np.int64)] * N
-    # second_neighbour_matrix = np.zeros((N, N))
     for row_index in prange(N):
         neighbour_indices = indices[indptr[row_index]:indptr[row_index + 1]]
         second_neighbour_indices_union = np.zeros((N,))
@@ -102,6 +101,33 @@ def second_neighbour_matrix_numba_loop(indptr, indices):
             second_neighbour_indices = indices[
                                        indptr[neighbour_index]: indptr[neighbour_index + 1]
                                        ]
+            for second_neighbour_index in second_neighbour_indices:
+                second_neighbour_indices_union[second_neighbour_index] = True
+
+        second_neighbour_indices_union = np.nonzero(second_neighbour_indices_union)[0]
+        indices_list[row_index] = second_neighbour_indices_union
+
+    return indices_list
+
+
+@njit(parallel=True)
+def second_neighbour_matrix_numba_loop_2(indptr, indices):
+    """
+    Return in sparse format.
+    """
+
+    N = len(indptr) - 1
+    # Manually create the list with specified length to avoid parallel Mutating error.
+    indices_list = [np.empty(0, dtype=np.int64)] * N
+    for row_index in prange(N):
+        neighbour_indices = indices[indptr[row_index]:indptr[row_index + 1]]
+        second_neighbour_indices_union = np.zeros((N,))
+        for neighbour_index in neighbour_indices:
+            second_neighbour_indices = indices[
+                                       indptr[neighbour_index]: indptr[neighbour_index + 1]
+                                       ]
+
+            # TODO: Consider using the np.union1d here? Unknown and variate length may cause performance issue.
             for second_neighbour_index in second_neighbour_indices:
                 second_neighbour_indices_union[second_neighbour_index] = True
 
@@ -120,15 +146,15 @@ def test_second_neighbour_matrix():
     t2 = time.time()
     print(t2 - t1)
 
-    second_neighbour_matrix_numba(neighbour_matrix.indptr, neighbour_matrix.indices)
+    # second_neighbour_matrix_numba(neighbour_matrix.indptr, neighbour_matrix.indices)
     t3 = time.time()
-    r = second_neighbour_matrix_numba(neighbour_matrix.indptr, neighbour_matrix.indices)
+    # r = second_neighbour_matrix_numba(neighbour_matrix.indptr, neighbour_matrix.indices)
     t4 = time.time()
     print(t4 - t3)
 
-    second_neighbour_matrix_numba_2(neighbour_matrix.indptr, neighbour_matrix.indices)
+    # second_neighbour_matrix_numba_2(neighbour_matrix.indptr, neighbour_matrix.indices)
     t5 = time.time()
-    r = second_neighbour_matrix_numba_2(neighbour_matrix.indptr, neighbour_matrix.indices)
+    # r = second_neighbour_matrix_numba_2(neighbour_matrix.indptr, neighbour_matrix.indices)
     t6 = time.time()
     print(t6 - t5)
 
@@ -137,6 +163,12 @@ def test_second_neighbour_matrix():
     r = second_neighbour_matrix_numba_loop(neighbour_matrix.indptr, neighbour_matrix.indices)
     t8 = time.time()
     print(t8 - t7)
+
+    # second_neighbour_matrix_numba_loop_2(neighbour_matrix.indptr, neighbour_matrix.indices)
+    t9 = time.time()
+    # r = second_neighbour_matrix_numba_loop_2(neighbour_matrix.indptr, neighbour_matrix.indices)
+    t10 = time.time()
+    print(t10 - t9)
 
     print()
 
