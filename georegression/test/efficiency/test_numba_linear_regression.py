@@ -1,7 +1,8 @@
+from time import time
+
 import numpy as np
 from numba import jit, njit, prange
 from sklearn.linear_model import Ridge
-from time import time
 
 
 def loop_python(iteration_count=1000):
@@ -131,8 +132,12 @@ def loop_parallel_inner(iteration_count=1000):
 
 
 @njit()
-def mean(x, axis):
-    return np.sum(x, axis) / x.shape[axis]
+def mean(x, axis, weight):
+    weight = weight.reshape((-1, 1))
+    x = x * weight
+    weight = weight.reshape((1, -1))
+
+    return np.sum(x, axis) / weight.sum()
 
 
 @njit()
@@ -177,14 +182,23 @@ def rigde_lstsq(X, y):
     return coef, intercept
 
 @njit()
-def ridge_cholesky(X, y):
+def ridge_cholesky(X, y, weights=None):
     alpha = 1.0
 
     # Center the data to make the intercept term zero
-    X_offset = mean(X, axis=0)
-    y_offset = mean(y, axis=0)
+
+    # TODO: Weight
+    X_offset = mean(X, axis=0, weight=weights)
+    y_offset = mean(y, axis=0, weight=weights)
+
     X_center = X - X_offset
     y_center = y - y_offset
+
+    if weights is not None:
+        weights_sqrt = np.sqrt(weights)
+        for index, weight in enumerate(weights_sqrt):
+            X_center[index] *= weight
+            y_center[index] *= weight
 
     A = np.dot(X_center.T, X_center)
     Xy = np.dot(X_center.T, y_center)
@@ -198,29 +212,30 @@ def ridge_cholesky(X, y):
 
 
 def test_ridge_work():
-    X = np.random.random((10000, 1000))
-    y = np.random.random((10000, 1))
+    X = np.random.random((1000, 100))
+    y = np.random.random((1000, 1))
+    weight = np.random.random((1000, ))
 
-    ridge_fit(X, y)
+    # ridge_fit(X, y)
     t1 = time()
-    coef, intercept = ridge_fit(X, y)
+    # coef, intercept = ridge_fit(X, y)
     t2 = time()
-    print(coef, intercept)
+    # print(coef, intercept)
 
     t3 = time()
-    estimator = Ridge(1.0).fit(X, y)
+    estimator = Ridge(1.0).fit(X, y, sample_weight=weight)
     t4 = time()
     print(estimator.coef_, estimator.intercept_)
 
-    rigde_lstsq(X, y)
+    # rigde_lstsq(X, y)
     t5 = time()
-    coef, intercept = rigde_lstsq(X, y)
+    # coef, intercept = rigde_lstsq(X, y)
     t6 = time()
-    print(coef, intercept)
+    # print(coef, intercept)
 
-    coef, intercept = ridge_cholesky(X, y)
+    coef, intercept = ridge_cholesky(X, y, weight)
     t7 = time()
-    coef, intercept = ridge_cholesky(X, y)
+    coef, intercept = ridge_cholesky(X, y, weight)
     t8 = time()
     print(coef, intercept)
 
@@ -279,4 +294,4 @@ if __name__ == "__main__":
 
     # 41 for intel extension
     # 39 for original sklearn
-    test_loop()
+    # test_loop()

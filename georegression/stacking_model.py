@@ -59,7 +59,7 @@ def _second_order_neighbour_sparse(indptr, indices, indptr_leave_out, indices_le
         second_neighbour_indices_union = np.zeros((N,))
         for neighbour_index in neighbour_indices:
             second_neighbour_indices = indices[
-                                       indptr[neighbour_index]: indptr[neighbour_index + 1]
+                                            indptr[neighbour_index]: indptr[neighbour_index + 1]
                                        ]
             for second_neighbour_index in second_neighbour_indices:
                 second_neighbour_indices_union[second_neighbour_index] = True
@@ -243,7 +243,9 @@ class StackingWeightModel(WeightModel):
             # From (i,j) is that i-th observation will not be used to fit the j-th base estimator
             # so that the j-th base estimator will be used for meta-estimator.
             # To (j,i) is that j-th observation will not consider i-th observation as neighbour while fitting base estimator.
-            neighbour_leave_out = neighbour_leave_out.T
+
+            # Structure not change for sparse matrix. BUG HERE.
+            neighbour_leave_out = csr_array(neighbour_leave_out.T)
             # weight_matrix = weight_matrix * ~neighbour_leave_out
 
         t_neighbour_end = time()
@@ -385,7 +387,7 @@ class StackingWeightModel(WeightModel):
         self.llocv_stacking_ = r2_score(self.y_sample_, local_stacking_predict)
         self.local_estimator_list = local_stacking_estimator_list
 
-
+        @njit(parallel=True)
         def stacking_numba(
                 leave_out_matrix_indptr, leave_out_matrix_indices,
                 neighbour_matrix_indptr, neighbour_matrix_indices,
@@ -393,7 +395,12 @@ class StackingWeightModel(WeightModel):
                 weight_matrix_indptr, weight_matrix_indices, weight_matrix_data,
                 alpha
         ):
-            for i in range(len(leave_out_matrix_indptr) - 1):
+            N = len(leave_out_matrix_indptr) - 1
+            coef_list = [np.empty(0)] * N
+            intercept_list = [np.empty(0)] * N
+            y_predict_list = [np.empty(0)] * N
+
+            for i in prange(N):
                 leave_out_indices = leave_out_matrix_indices[leave_out_matrix_indptr[i]:leave_out_matrix_indptr[i + 1]]
                 neighbour_indices = neighbour_matrix_indices[neighbour_matrix_indptr[i]:neighbour_matrix_indptr[i + 1]]
 
@@ -419,7 +426,7 @@ class StackingWeightModel(WeightModel):
                     weight_matrix_indptr[i]:weight_matrix_indptr[i + 1]
                 ]
 
-                coef, intercept = ridge_cholesky(X_fit_T.T, y_fit, alpha)
+                coef, intercept = ridge_cholesky(X_fit_T.T, y_fit, alpha, weight_fit)
 
                 X_predict = np.zeros((1, len(leave_out_indices)))
                 for X_predict_row_index in range(len(leave_out_indices)):
@@ -439,10 +446,14 @@ class StackingWeightModel(WeightModel):
 
                 y_predict = np.dot(X_predict, coef) + intercept
 
-                return coef, intercept, y_predict
+                coef_list[i] = coef
+                intercept_list[i] = intercept
+                y_predict_list[i] = y_predict
+
+            return coef_list, intercept_list, y_predict_list
 
         t1 = time()
-        stacking_numba(
+        coef_list, intercept_list, y_predict_list = stacking_numba(
             neighbour_leave_out_.indptr, neighbour_leave_out_.indices,
             neighbour_matrix.indptr, neighbour_matrix.indices,
             X_meta_T.indptr, X_meta_T.indices, X_meta_T.data, y,
@@ -451,6 +462,8 @@ class StackingWeightModel(WeightModel):
         )
         t2 = time()
         print(t2 - t1)
+
+        print()
 
         # Log the time elapsed in a single line
         logger.debug(

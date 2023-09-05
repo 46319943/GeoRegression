@@ -3,22 +3,30 @@ from numba import njit
 
 
 @njit()
-def mean(x, axis):
-    return np.sum(x, axis) / x.shape[axis]
+def mean(x, axis, weight):
+    weight = weight.reshape((-1, 1))
+    x = x * weight
+    return np.sum(x, axis) / np.sum(weight)
 
 @njit()
-def ridge_cholesky(X, y, alpha):
+def ridge_cholesky(X, y, alpha, weight):
     # Center the data to make the intercept term zero
 
     # (n,)
-    X_offset = np.sum(X, 0) / X.shape[0]
+    X_offset = mean(X, 0, weight)
     # (1,)
-    y_offset = np.sum(y, 0) / y.shape[0]
+    y_offset = mean(y, 0, weight)
 
     # (m, n)
     X_center = X - X_offset
     # (m,)
     y_center = y - y_offset
+
+    # sample_weight via a simple rescaling
+    weight_sqrt = np.sqrt(weight)
+    for index, weight in enumerate(weight_sqrt):
+        X_center[index] *= weight
+        y_center[index] *= weight
 
     # (n, n)
     A = np.dot(X_center.T, X_center)
