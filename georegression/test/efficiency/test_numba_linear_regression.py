@@ -68,6 +68,28 @@ def loop_paralle_lstsq(iteration_count=1000):
 
 
 @njit(parallel=True)
+def loop_parallel_chol(iteration_count=1000):
+    X = np.random.random((100, 100))
+    y = np.random.random((100, 1))
+
+    for i in prange(iteration_count):
+        alpha = 1.0
+
+        # Center the data to make the intercept term zero
+        X_offset = mean(X, axis=0)
+        y_offset = mean(y, axis=0)
+        X_center = X - X_offset
+        y_center = y - y_offset
+
+        A = np.dot(X_center.T, X_center)
+        Xy = np.dot(X_center.T, y_center)
+
+        A = A + alpha * np.eye(X.shape[1])
+
+        coef = np.linalg.solve(A, Xy)
+        intercept = y_offset - np.dot(X_offset, coef)
+
+@njit(parallel=True)
 def loop_parallel_inner(iteration_count=1000):
     X = np.random.random((100, 100))
     y = np.random.random((100, 1))
@@ -152,6 +174,26 @@ def rigde_lstsq(X, y):
 
     return coef, intercept
 
+@njit()
+def ridge_cholesky(X, y):
+    alpha = 1.0
+
+    # Center the data to make the intercept term zero
+    X_offset = mean(X, axis=0)
+    y_offset = mean(y, axis=0)
+    X_center = X - X_offset
+    y_center = y - y_offset
+
+    A = np.dot(X_center.T, X_center)
+    Xy = np.dot(X_center.T, y_center)
+
+    A = A + alpha * np.eye(X.shape[1])
+
+    coef = np.linalg.solve(A, Xy)
+    intercept = y_offset - np.dot(X_offset, coef)
+
+    return coef, intercept
+
 
 def test_ridge_work():
     X = np.random.random((10000, 1000))
@@ -163,26 +205,34 @@ def test_ridge_work():
     t2 = time()
     print(coef, intercept)
 
+    t3 = time()
+    estimator = Ridge(1.0).fit(X, y)
+    t4 = time()
+    print(estimator.coef_, estimator.intercept_)
+
     rigde_lstsq(X, y)
     t5 = time()
     coef, intercept = rigde_lstsq(X, y)
     t6 = time()
     print(coef, intercept)
 
-    t3 = time()
-    estimator = Ridge(1.0).fit(X, y)
-    t4 = time()
-    print(estimator.coef_, estimator.intercept_)
+    coef, intercept = ridge_cholesky(X, y)
+    t7 = time()
+    coef, intercept = ridge_cholesky(X, y)
+    t8 = time()
+    print(coef, intercept)
+
 
     print(t2 - t1)
     print(t4 - t3)
     print(t6 - t5)
+    print(t8 - t7)
 
 
 def test_loop():
 
     t1 = time()
-    loop_python(10000)
+    loop_python(100000)
     t2 = time()
     print(t2 - t1)
 
@@ -210,9 +260,15 @@ def test_loop():
     t2 = time()
     print(t2 - t1)
 
-    loop_paralle_lstsq(1)
+    # loop_paralle_lstsq(1)
     t1 = time()
-    loop_paralle_lstsq(10000)
+    # loop_paralle_lstsq(10000)
+    t2 = time()
+    print(t2 - t1)
+
+    loop_parallel_chol(1)
+    t1 = time()
+    loop_parallel_chol(100000)
     t2 = time()
     print(t2 - t1)
 
