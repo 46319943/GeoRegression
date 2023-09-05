@@ -73,21 +73,23 @@ def loop_parallel_chol(iteration_count=1000):
     y = np.random.random((100, 1))
 
     for i in prange(iteration_count):
-        alpha = 1.0
+        ridge_cholesky(X, y)
 
-        # Center the data to make the intercept term zero
-        X_offset = mean(X, axis=0)
-        y_offset = mean(y, axis=0)
-        X_center = X - X_offset
-        y_center = y - y_offset
-
-        A = np.dot(X_center.T, X_center)
-        Xy = np.dot(X_center.T, y_center)
-
-        A = A + alpha * np.eye(X.shape[1])
-
-        coef = np.linalg.solve(A, Xy)
-        intercept = y_offset - np.dot(X_offset, coef)
+        # alpha = 1.0
+        #
+        # # Center the data to make the intercept term zero
+        # X_offset = mean(X, axis=0)
+        # y_offset = mean(y, axis=0)
+        # X_center = X - X_offset
+        # y_center = y - y_offset
+        #
+        # A = np.dot(X_center.T, X_center)
+        # Xy = np.dot(X_center.T, y_center)
+        #
+        # A = A + alpha * np.eye(X.shape[1])
+        #
+        # coef = np.linalg.solve(A, Xy)
+        # intercept = y_offset - np.dot(X_offset, coef)
 
 @njit(parallel=True)
 def loop_parallel_inner(iteration_count=1000):
@@ -273,7 +275,7 @@ def test_loop():
     print(t2 - t1)
 
 if __name__ == "__main__":
-    # test_ridge_work()
+    test_ridge_work()
 
     # 41 for intel extension
     # 39 for original sklearn

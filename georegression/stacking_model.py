@@ -10,6 +10,7 @@ from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score
 from slab_utils.quick_logger import logger
 
+from georegression.numba_impl import ridge_cholesky
 from georegression.weight_matrix import calculate_compound_weight_matrix
 from georegression.weight_model import WeightModel
 
@@ -334,6 +335,7 @@ class StackingWeightModel(WeightModel):
             if self.neighbour_leave_out_rate is not None:
                 # neighbour_sample = neighbour_leave_out[i]
                 neighbour_sample = neighbour_leave_out[:, [i]]
+                # neighbour_sample = neighbour_leave_out_[[i]]
 
             # Sample from neighbour bool matrix to get sampled neighbour index.
             if self.estimator_sample_rate is not None:
@@ -384,9 +386,71 @@ class StackingWeightModel(WeightModel):
         self.local_estimator_list = local_stacking_estimator_list
 
 
-        def stacking_numba():
-            pass
+        def stacking_numba(
+                leave_out_matrix_indptr, leave_out_matrix_indices,
+                neighbour_matrix_indptr, neighbour_matrix_indices,
+                X_meta_indptr, X_meta_indices, X_meta_data, y,
+                weight_matrix_indptr, weight_matrix_indices, weight_matrix_data,
+                alpha
+        ):
+            for i in range(len(leave_out_matrix_indptr) - 1):
+                leave_out_indices = leave_out_matrix_indices[leave_out_matrix_indptr[i]:leave_out_matrix_indptr[i + 1]]
+                neighbour_indices = neighbour_matrix_indices[neighbour_matrix_indptr[i]:neighbour_matrix_indptr[i + 1]]
 
+                X_fit_T = np.zeros((len(leave_out_indices), len(neighbour_indices)))
+                
+                
+                for X_fit_row_index in range(len(leave_out_indices)):
+                    neighbour_available_indices = X_meta_indices[
+                                                        X_meta_indptr[leave_out_indices[X_fit_row_index]]:
+                                                        X_meta_indptr[leave_out_indices[X_fit_row_index] + 1]
+                                                    ]
+                    current_column = 0
+                    for iter_i in range(len(neighbour_available_indices)):
+                        if neighbour_available_indices[iter_i] in neighbour_indices:
+                            X_fit_T[X_fit_row_index, current_column] = X_meta_data[
+                                X_meta_indptr[X_fit_row_index] + iter_i
+                            ]
+                            current_column = current_column + 1
+
+                y_fit = y[neighbour_indices]
+
+                weight_fit = weight_matrix_data[
+                    weight_matrix_indptr[i]:weight_matrix_indptr[i + 1]
+                ]
+
+                coef, intercept = ridge_cholesky(X_fit_T.T, y_fit, alpha)
+
+                X_predict = np.zeros((1, len(leave_out_indices)))
+                for X_predict_row_index in range(len(leave_out_indices)):
+                    neighbour_available_indices = X_meta_indices[
+                                                        X_meta_indptr[leave_out_indices[X_predict_row_index]]:
+                                                        X_meta_indptr[leave_out_indices[X_predict_row_index] + 1]
+                                                    ]
+
+                    # Find the index of the first element equals i
+                    for iter_i in range(len(neighbour_available_indices)):
+                        if neighbour_available_indices[iter_i] == i:
+                            break
+
+                    X_predict[0, X_predict_row_index] = X_meta_data[
+                        X_meta_indptr[X_predict_row_index] + iter_i
+                    ]
+
+                y_predict = np.dot(X_predict, coef) + intercept
+
+                return coef, intercept, y_predict
+
+        t1 = time()
+        stacking_numba(
+            neighbour_leave_out_.indptr, neighbour_leave_out_.indices,
+            neighbour_matrix.indptr, neighbour_matrix.indices,
+            X_meta_T.indptr, X_meta_T.indices, X_meta_T.data, y,
+            weight_matrix.indptr, weight_matrix.indices, weight_matrix.data,
+            self.alpha
+        )
+        t2 = time()
+        print(t2 - t1)
 
         # Log the time elapsed in a single line
         logger.debug(
