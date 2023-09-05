@@ -396,7 +396,7 @@ class StackingWeightModel(WeightModel):
                 alpha
         ):
             N = len(leave_out_matrix_indptr) - 1
-            coef_list = [np.empty(0)] * N
+            coef_list = [np.empty((0))] * N
             intercept_list = [np.empty(0)] * N
             y_predict_list = [np.empty(0)] * N
 
@@ -422,13 +422,14 @@ class StackingWeightModel(WeightModel):
 
                 y_fit = y[neighbour_indices]
 
+                # TODO: Remove self
                 weight_fit = weight_matrix_data[
                     weight_matrix_indptr[i]:weight_matrix_indptr[i + 1]
                 ]
 
                 coef, intercept = ridge_cholesky(X_fit_T.T, y_fit, alpha, weight_fit)
 
-                X_predict = np.zeros((1, len(leave_out_indices)))
+                X_predict = np.zeros((len(leave_out_indices),))
                 for X_predict_row_index in range(len(leave_out_indices)):
                     neighbour_available_indices = X_meta_indices[
                                                         X_meta_indptr[leave_out_indices[X_predict_row_index]]:
@@ -440,13 +441,13 @@ class StackingWeightModel(WeightModel):
                         if neighbour_available_indices[iter_i] == i:
                             break
 
-                    X_predict[0, X_predict_row_index] = X_meta_data[
+                    X_predict[X_predict_row_index] = X_meta_data[
                         X_meta_indptr[X_predict_row_index] + iter_i
                     ]
 
                 y_predict = np.dot(X_predict, coef) + intercept
 
-                coef_list[i] = coef
+                # coef_list[i] = coef.reshape((-1,)).T
                 intercept_list[i] = intercept
                 y_predict_list[i] = y_predict
 

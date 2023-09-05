@@ -10,8 +10,9 @@ def mean(x, axis, weight):
 
 @njit()
 def ridge_cholesky(X, y, alpha, weight):
-    # Center the data to make the intercept term zero
+    y = y.reshape((-1, 1))
 
+    # Center the data to make the intercept term zero
     # (n,)
     X_offset = mean(X, 0, weight)
     # (1,)
@@ -47,8 +48,11 @@ if __name__ == '__main__':
     X = np.random.randn(1000, 100)
     y = np.random.randn(1000)
     alpha = 10
+    weight = np.random.random((1000, ))
 
-    coef, intercept = ridge_cholesky(X, y, alpha)
+    coef, intercept = ridge_cholesky(X, y, alpha, weight)
 
     print(coef, intercept)
     print(coef.shape, intercept.shape)
+
+    print()
