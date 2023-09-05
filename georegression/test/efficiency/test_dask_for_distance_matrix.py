@@ -159,7 +159,7 @@ if __name__ == "__main__":
     cluster = LocalCluster(
         local_directory="F:/dask",
         n_workers=4,
-        memory_limit="6GiB",
+        memory_limit="21GiB",
     )
     client = Client(cluster)
     print(client.dashboard_link)

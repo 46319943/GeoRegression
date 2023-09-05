@@ -40,7 +40,12 @@ def kernel_function(
     bandwidth = bandwidth.reshape((-1, 1))
 
     normalize_distance = distance / bandwidth
-    np.nan_to_num(normalize_distance, copy=False, nan=0.0, posinf=np.inf)
+    if isinstance(normalize_distance, da.Array):
+        # TODO: Why dask array do not support keyword argument for this method? It can be easily implemented with map_blocks
+        # da.map_blocks(np.nan_to_num, normalize_distance, copy=False, nan=0.0, posinf=np.inf)
+        normalize_distance = da.nan_to_num(normalize_distance, False, 0.0, np.inf)
+    else:
+        np.nan_to_num(normalize_distance, copy=False, nan=0.0, posinf=np.inf)
 
     # Continuous kernel
     if kernel_type == "uniform":
