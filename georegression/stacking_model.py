@@ -383,6 +383,11 @@ class StackingWeightModel(WeightModel):
         self.llocv_stacking_ = r2_score(self.y_sample_, local_stacking_predict)
         self.local_estimator_list = local_stacking_estimator_list
 
+
+        def stacking_numba():
+            pass
+
+
         # Log the time elapsed in a single line
         logger.debug(
             "Leave local out elapsed: %s \n"
