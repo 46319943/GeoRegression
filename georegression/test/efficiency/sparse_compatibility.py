@@ -1,9 +1,4 @@
-import time
-
-import numpy as np
-from numba import njit, prange
-from scipy.sparse import csr_matrix, csr_array, lil_array
-from scipy.spatial.distance import cdist
+from scipy.sparse import csr_array
 from sklearn.linear_model import LinearRegression
 
 from georegression.stacking_model import StackingWeightModel
@@ -11,10 +6,10 @@ from georegression.test.data import load_HP
 from georegression.weight_matrix import calculate_compound_weight_matrix
 from georegression.weight_model import WeightModel
 
+X, y_true, xy_vector, time = load_HP()
+
 
 def test_compatibility():
-    X, y_true, xy_vector, time = load_HP()
-
     estimator = WeightModel(
         LinearRegression(),
         "euclidean",
@@ -30,17 +25,14 @@ def test_compatibility():
 
     print(estimator.llocv_score_)
 
-    pass
 
 def test_stacking_compatibility():
-    X, y_true, xy_vector, time = load_HP()
-
     estimator = StackingWeightModel(
         LinearRegression(),
         "euclidean",
         "bisquare",
         neighbour_count=0.1,
-        neighbour_leave_out_rate=0.3,
+        neighbour_leave_out_rate=0.05,
     )
 
     weight_matrix = calculate_compound_weight_matrix(
@@ -51,7 +43,6 @@ def test_stacking_compatibility():
 
     print(estimator.llocv_score_)
 
-    pass
 
 if __name__ == '__main__':
     # test_compatibility()

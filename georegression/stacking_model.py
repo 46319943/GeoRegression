@@ -267,6 +267,7 @@ class StackingWeightModel(WeightModel):
         if isinstance(neighbour_matrix, np.ndarray):
             np.fill_diagonal(neighbour_matrix, False)
         else:
+            # BUG HERE. setdiag doesn't change the structure (indptr, indices), only data change from True to False.
             neighbour_matrix.setdiag(False)
 
         self.cache_estimator = cache_estimator
@@ -374,6 +375,7 @@ class StackingWeightModel(WeightModel):
                 ))
             )
 
+            # TODO: Unordered coef for each estimator.
             stacking_estimator = StackingEstimator(
                 final_estimator,
                 list(compress(self.meta_estimator_list, neighbour_sample.toarray().flatten())),
@@ -383,6 +385,8 @@ class StackingWeightModel(WeightModel):
             indexing_time = indexing_time + t_indexing_end - t_indexing_start
             stacking_time = stacking_time + t_stacking_end - t_stacking_start
 
+            # break
+
         self.stacking_predict_ = local_stacking_predict
         self.llocv_stacking_ = r2_score(self.y_sample_, local_stacking_predict)
         self.local_estimator_list = local_stacking_estimator_list
@@ -391,7 +395,7 @@ class StackingWeightModel(WeightModel):
         def stacking_numba(
                 leave_out_matrix_indptr, leave_out_matrix_indices,
                 neighbour_matrix_indptr, neighbour_matrix_indices,
-                X_meta_indptr, X_meta_indices, X_meta_data, y,
+                X_meta_T_indptr, X_meta_T_indices, X_meta_T_data, y,
                 weight_matrix_indptr, weight_matrix_indices, weight_matrix_data,
                 alpha
         ):
@@ -404,46 +408,62 @@ class StackingWeightModel(WeightModel):
                 leave_out_indices = leave_out_matrix_indices[leave_out_matrix_indptr[i]:leave_out_matrix_indptr[i + 1]]
                 neighbour_indices = neighbour_matrix_indices[neighbour_matrix_indptr[i]:neighbour_matrix_indptr[i + 1]]
 
+                # Find the index of the first element equals i
+                # for iter_i in range(len(neighbour_indices)):
+                #     if neighbour_indices[iter_i] == i:
+                #         break
+
+                # Delete self from neighbour_indices
+                # neighbour_indices = np.delete(neighbour_indices, iter_i)
+                # neighbour_indices = np.hstack((neighbour_indices[:iter_i], neighbour_indices[iter_i + 1:]))
+                neighbour_indices = neighbour_indices[neighbour_indices != i]
+
                 X_fit_T = np.zeros((len(leave_out_indices), len(neighbour_indices)))
-                
-                
+
+                # leave_out_indices = np.sort(leave_out_indices)
+
                 for X_fit_row_index in range(len(leave_out_indices)):
-                    neighbour_available_indices = X_meta_indices[
-                                                        X_meta_indptr[leave_out_indices[X_fit_row_index]]:
-                                                        X_meta_indptr[leave_out_indices[X_fit_row_index] + 1]
-                                                    ]
+                    neighbour_available_indices = X_meta_T_indices[
+                                                        X_meta_T_indptr[leave_out_indices[X_fit_row_index]]:
+                                                        X_meta_T_indptr[leave_out_indices[X_fit_row_index] + 1]
+                                                  ]
                     current_column = 0
                     for iter_i in range(len(neighbour_available_indices)):
                         if neighbour_available_indices[iter_i] in neighbour_indices:
-                            X_fit_T[X_fit_row_index, current_column] = X_meta_data[
-                                X_meta_indptr[X_fit_row_index] + iter_i
-                            ]
+                            X_fit_T[X_fit_row_index, current_column] = X_meta_T_data[
+                                X_meta_T_indptr[leave_out_indices[X_fit_row_index]] + iter_i
+                                ]
                             current_column = current_column + 1
 
                 y_fit = y[neighbour_indices]
 
-                # TODO: Remove self
-                weight_fit = weight_matrix_data[
-                    weight_matrix_indptr[i]:weight_matrix_indptr[i + 1]
+                weight_indices = weight_matrix_indices[
+                    weight_matrix_indptr[i]: weight_matrix_indptr[i + 1]
                 ]
+                weight_indices = weight_indices[weight_indices != i]
+                weight_fit = weight_matrix_data[
+                    weight_indices
+                ]
+                # weight_fit = np.delete(weight_fit, iter_i)
+                # weight_fit = np.hstack((weight_fit[:iter_i], weight_fit[iter_i + 1:]))
 
                 coef, intercept = ridge_cholesky(X_fit_T.T, y_fit, alpha, weight_fit)
 
                 X_predict = np.zeros((len(leave_out_indices),))
                 for X_predict_row_index in range(len(leave_out_indices)):
-                    neighbour_available_indices = X_meta_indices[
-                                                        X_meta_indptr[leave_out_indices[X_predict_row_index]]:
-                                                        X_meta_indptr[leave_out_indices[X_predict_row_index] + 1]
-                                                    ]
+                    neighbour_available_indices = X_meta_T_indices[
+                                                        X_meta_T_indptr[leave_out_indices[X_predict_row_index]]:
+                                                        X_meta_T_indptr[leave_out_indices[X_predict_row_index] + 1]
+                                                  ]
 
                     # Find the index of the first element equals i
                     for iter_i in range(len(neighbour_available_indices)):
                         if neighbour_available_indices[iter_i] == i:
                             break
 
-                    X_predict[X_predict_row_index] = X_meta_data[
-                        X_meta_indptr[X_predict_row_index] + iter_i
-                    ]
+                    X_predict[X_predict_row_index] = X_meta_T_data[
+                             X_meta_T_indptr[leave_out_indices[X_predict_row_index]] + iter_i
+                        ]
 
                 y_predict = np.dot(X_predict, coef) + intercept
 
@@ -463,8 +483,9 @@ class StackingWeightModel(WeightModel):
         )
         t2 = time()
         print(t2 - t1)
-
-        print()
+        print(
+            r2_score(y, np.array(y_predict_list))
+        )
 
         # Log the time elapsed in a single line
         logger.debug(
