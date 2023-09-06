@@ -3,7 +3,7 @@ from time import time as t
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression, Ridge, RidgeCV
-from sklearn.tree import DecisionTreeRegressor
+from sklearn.tree import DecisionTreeRegressor, ExtraTreeRegressor
 
 from georegression.stacking_model import StackingWeightModel
 from georegression.test.data import load_HP
@@ -142,24 +142,19 @@ def test_estimator_sample():
 
 
 def test_performance():
-    local_estimator = DecisionTreeRegressor(splitter="random", max_depth=2)
     distance_measure = "euclidean"
     kernel_type = "bisquare"
     distance_ratio = None
     bandwidth = None
     neighbour_count = 0.1
-    midpoint = True
-    p = None
 
     estimator = StackingWeightModel(
-        local_estimator,
+        ExtraTreeRegressor(splitter="random", max_depth=1),
         distance_measure,
         kernel_type,
         distance_ratio,
         bandwidth,
         neighbour_count,
-        midpoint,
-        p,
         neighbour_leave_out_rate=0.1,
         # estimator_sample_rate=0.1,
     )
@@ -188,8 +183,6 @@ def test_performance():
         distance_ratio,
         bandwidth,
         neighbour_count,
-        midpoint,
-        p,
     )
     t2 = t()
     estimator.fit(X, y_true, [xy_vector, time])
@@ -212,8 +205,6 @@ def test_performance():
         distance_ratio,
         bandwidth,
         neighbour_count,
-        midpoint,
-        p,
     )
     # estimator.local_estimator = RidgeCV()
     # estimator.use_stacking = False
