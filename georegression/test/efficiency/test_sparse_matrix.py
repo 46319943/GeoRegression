@@ -44,9 +44,6 @@ def second_order_neighbour_sparse(neighbour_matrix: csr_matrix):
 
     return second_order_matrix
 
-def test_njit():
-    pass
-
 def test_second_order_neighbour():
     points = np.random.random((10000, 2))
     distance_matrix = cdist(points, points)
