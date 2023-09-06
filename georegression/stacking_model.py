@@ -4,7 +4,7 @@ from itertools import compress
 
 import numpy as np
 from numba import njit, prange
-from scipy.sparse import csr_array, csc_array
+from scipy.sparse import csr_array, csc_array, lil_array
 from sklearn.base import BaseEstimator
 from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score
@@ -256,8 +256,18 @@ class StackingWeightModel(WeightModel):
 
         # TODO: Consider the phenomenon that weight_matrix_local[neighbour_leave_out.nonzero()] is not zero.
 
+
+        # weight_matrix_local = weight_matrix.copy()
+        # To set the value for sparse matrix, convert it first to lil_array, then convert back to csr_array.
+        # This can make sure the inner structure of csr_array is correct to be able to manipulate directly .
+        # weight_matrix_local = lil_array(weight_matrix_local)
+        # weight_matrix_local[neighbour_leave_out.nonzero()] = 0
+        # weight_matrix_local = csr_array(weight_matrix_local)
+
         weight_matrix_local = weight_matrix.copy()
         weight_matrix_local[neighbour_leave_out.nonzero()] = 0
+        # Or just use eliminate_zeros() to remove the zero elements.
+        weight_matrix_local.eliminate_zeros()
 
         super().fit(
             X,
@@ -269,9 +279,11 @@ class StackingWeightModel(WeightModel):
         neighbour_matrix = weight_matrix > 0
         if isinstance(neighbour_matrix, np.ndarray):
             np.fill_diagonal(neighbour_matrix, False)
-        else:
+        elif isinstance(neighbour_matrix, csr_array):
             # BUG HERE. setdiag doesn't change the structure (indptr, indices), only data change from True to False.
             neighbour_matrix.setdiag(False)
+            # TO FIX: Just use eliminate_zeros
+            neighbour_matrix.eliminate_zeros()
 
         self.cache_estimator = cache_estimator
         self.meta_estimator_list = self.local_estimator_list

@@ -8,6 +8,7 @@ from sklearn.inspection._partial_dependence import _grid_from_X
 from sklearn.metrics import r2_score
 from sklearn.utils.validation import check_X_y
 from slab_utils.quick_logger import logger
+from scipy.sparse import csr_array
 
 from georegression.weight_matrix import calculate_compound_weight_matrix
 
@@ -68,16 +69,60 @@ def _fit(X, y, estimator_list, weight_matrix,
         X_predict = X
 
     # Parallel run the job. return [(prediction, estimator), (), ...]
-    parallel_result = Parallel(n_jobs)(
-        delayed(fit_local_estimator)(
-            estimator, X[neighbour_mask.nonzero()[1]], y[neighbour_mask.nonzero()[1]], local_x=x,
-            sample_weight=row_weight[:, neighbour_mask.nonzero()[1]].toarray().flatten(),
-            return_estimator=cache_estimator
+    if isinstance(weight_matrix, np.ndarray):
+        parallel_result = Parallel(n_jobs)(
+            delayed(fit_local_estimator)(
+                estimator, X[neighbour_mask], y[neighbour_mask], local_x=x,
+                sample_weight=row_weight[neighbour_mask],
+                return_estimator=cache_estimator
+            )
+            for index, estimator, neighbour_mask, row_weight, x in
+            zip(local_indices, estimator_list, neighbour_matrix, weight_matrix, X_predict)
+            if index in local_indices
         )
-        for index, estimator, neighbour_mask, row_weight, x in
-        zip(local_indices, estimator_list, neighbour_matrix, weight_matrix, X_predict)
-        if index in local_indices
-    )
+    else:
+        task_list = []
+        for i in local_indices:
+            estimator = estimator_list[i]
+            neighbour_mask = neighbour_matrix.indices[
+                neighbour_matrix.indptr[i]:neighbour_matrix.indptr[i + 1]
+            ]
+            row_weight = weight_matrix.data[
+                weight_matrix.indptr[i]:weight_matrix.indptr[i + 1]
+            ]
+            x = X_predict[i]
+            task = delayed(fit_local_estimator)(
+                estimator, X[neighbour_mask], y[neighbour_mask], local_x=x,
+                sample_weight=row_weight,
+                return_estimator=cache_estimator
+            )
+            task_list.append(task)
+
+        parallel_result = Parallel(n_jobs)(task_list)
+
+        # task = list(
+        #     delayed(fit_local_estimator)(
+        #         estimator, X[neighbour_mask.nonzero()[1]], y[neighbour_mask.nonzero()[1]], local_x=x,
+        #         sample_weight=row_weight[:, neighbour_mask.nonzero()[1]].toarray().flatten(),
+        #         return_estimator=cache_estimator
+        #     )
+        #     for index, estimator, neighbour_mask, row_weight, x in
+        #     zip(local_indices, estimator_list, neighbour_matrix, weight_matrix, X_predict)
+        #     if index in local_indices
+        # )
+        # parallel_result = Parallel(n_jobs)(task)
+
+
+        # parallel_result = Parallel(n_jobs)(
+        #     delayed(fit_local_estimator)(
+        #         estimator, X[neighbour_mask.nonzero()[1]], y[neighbour_mask.nonzero()[1]], local_x=x,
+        #         sample_weight=row_weight[:, neighbour_mask.nonzero()[1]].toarray().flatten(),
+        #         return_estimator=cache_estimator
+        #     )
+        #     for index, estimator, neighbour_mask, row_weight, x in
+        #     zip(local_indices, estimator_list, neighbour_matrix, weight_matrix, X_predict)
+        #     if index in local_indices
+        # )
 
     local_predict, local_estimator_list = list(zip(*parallel_result))
 
@@ -227,7 +272,9 @@ class WeightModel(BaseEstimator, RegressorMixin):
             if isinstance(self.weight_matrix_, np.ndarray):
                 np.fill_diagonal(self.weight_matrix_, 0)
             else:
+                # TODO: High cost for sparse matrix
                 self.weight_matrix_.setdiag(0)
+                self.weight_matrix_.eliminate_zeros()
 
         self.neighbour_matrix_ = self.weight_matrix_ > 0
 

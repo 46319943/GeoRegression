@@ -7,23 +7,39 @@ from georegression.test.data import load_HP
 from georegression.weight_matrix import calculate_compound_weight_matrix
 from georegression.weight_model import WeightModel
 
+from time import time as t
+
 X, y_true, xy_vector, time = load_HP()
 
 
 def test_compatibility():
+    weight_matrix = calculate_compound_weight_matrix(
+        [xy_vector, time], [xy_vector, time], "euclidean", "bisquare", None, None, 0.1, None
+    )
+
+    t1 = t()
     estimator = WeightModel(
         LinearRegression(),
         "euclidean",
         "bisquare",
         neighbour_count=0.1
     )
+    estimator.fit(X, y_true, [xy_vector, time], weight_matrix=weight_matrix)
+    t2 = t()
+    print(t2 - t1)
+    print(estimator.llocv_score_)
 
-    weight_matrix = calculate_compound_weight_matrix(
-        [xy_vector, time], [xy_vector, time], "euclidean", "bisquare", None, None, 0.1, None
+    t1 = t()
+    estimator = WeightModel(
+        LinearRegression(),
+        "euclidean",
+        "bisquare",
+        neighbour_count=0.1
     )
-    sparse_matrix = csr_array(weight_matrix)
-    estimator.fit(X, y_true, [xy_vector, time], weight_matrix=sparse_matrix)
-
+    weight_matrix = csr_array(weight_matrix)
+    estimator.fit(X, y_true, [xy_vector, time], weight_matrix=weight_matrix)
+    t2 = t()
+    print(t2 - t1)
     print(estimator.llocv_score_)
 
 
@@ -39,8 +55,8 @@ def test_stacking_compatibility():
     weight_matrix = calculate_compound_weight_matrix(
         [xy_vector, time], [xy_vector, time], "euclidean", "bisquare", None, None, 0.1, None
     )
-    sparse_matrix = csr_array(weight_matrix)
-    estimator.fit(X, y_true, [xy_vector, time], weight_matrix=sparse_matrix)
+    weight_matrix = csr_array(weight_matrix)
+    estimator.fit(X, y_true, [xy_vector, time], weight_matrix=weight_matrix)
 
     print(estimator.llocv_score_)
     print(estimator.llocv_stacking_)
