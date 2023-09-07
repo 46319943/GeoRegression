@@ -81,6 +81,9 @@ def _fit(X, y, estimator_list, weight_matrix,
             if index in local_indices
         )
     else:
+        # Make the task a list instead of a generator will speed up a little.
+        # Use a temporal variable to save the index should speed up a lot.
+        # Use native way to index also should speed up a lot.
         task_list = []
         for i in local_indices:
             estimator = estimator_list[i]
@@ -99,30 +102,6 @@ def _fit(X, y, estimator_list, weight_matrix,
             task_list.append(task)
 
         parallel_result = Parallel(n_jobs)(task_list)
-
-        # task = list(
-        #     delayed(fit_local_estimator)(
-        #         estimator, X[neighbour_mask.nonzero()[1]], y[neighbour_mask.nonzero()[1]], local_x=x,
-        #         sample_weight=row_weight[:, neighbour_mask.nonzero()[1]].toarray().flatten(),
-        #         return_estimator=cache_estimator
-        #     )
-        #     for index, estimator, neighbour_mask, row_weight, x in
-        #     zip(local_indices, estimator_list, neighbour_matrix, weight_matrix, X_predict)
-        #     if index in local_indices
-        # )
-        # parallel_result = Parallel(n_jobs)(task)
-
-
-        # parallel_result = Parallel(n_jobs)(
-        #     delayed(fit_local_estimator)(
-        #         estimator, X[neighbour_mask.nonzero()[1]], y[neighbour_mask.nonzero()[1]], local_x=x,
-        #         sample_weight=row_weight[:, neighbour_mask.nonzero()[1]].toarray().flatten(),
-        #         return_estimator=cache_estimator
-        #     )
-        #     for index, estimator, neighbour_mask, row_weight, x in
-        #     zip(local_indices, estimator_list, neighbour_matrix, weight_matrix, X_predict)
-        #     if index in local_indices
-        # )
 
     local_predict, local_estimator_list = list(zip(*parallel_result))
 

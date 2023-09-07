@@ -1,6 +1,6 @@
 import numpy as np
 
-from georegression.stacking_model import sample_neighbour
+from georegression.neighbour_utils import sample_neighbour
 
 
 def test_sample_neighbour():
