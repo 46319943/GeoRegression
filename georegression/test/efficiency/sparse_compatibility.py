@@ -20,7 +20,7 @@ def test_compatibility():
 
     t1 = t()
     estimator = WeightModel(
-        LinearRegression(),
+        ExtraTreeRegressor(max_depth=1, splitter="random"),
         "euclidean",
         "bisquare",
         neighbour_count=0.1
@@ -32,7 +32,7 @@ def test_compatibility():
 
     t1 = t()
     estimator = WeightModel(
-        LinearRegression(),
+        ExtraTreeRegressor(max_depth=1, splitter="random"),
         "euclidean",
         "bisquare",
         neighbour_count=0.1
@@ -78,12 +78,12 @@ def test_stacking_compatibility():
         neighbour_leave_out_rate=0.1,
         use_numba=True
     )
-    # estimator.fit(X, y_true, [xy_vector, time], weight_matrix=weight_matrix)
+    estimator.fit(X, y_true, [xy_vector, time], weight_matrix=weight_matrix)
     print(estimator.llocv_score_)
     print(estimator.llocv_stacking_)
 
     print()
 
 if __name__ == '__main__':
-    # test_compatibility()
-    test_stacking_compatibility()
+    test_compatibility()
+    # test_stacking_compatibility()

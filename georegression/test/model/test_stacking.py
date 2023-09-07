@@ -175,6 +175,7 @@ def test_performance():
     # After fixing the neighbour estimator selection bug.
     # neighbour_count = 0.1 neighbour_leave_out_rate=0.1 14.831573724746704 0.7644013832778737 0.8101877198579331
     # neighbour_count = 0.01 neighbour_leave_out_rate=0.1 9.51764440536499 0.7088130603052478 0.7641255806160333
+    # neighbour_count = 0.1 neighbour_leave_out_rate=0.1 17.498192310333252 0.7670304978651743 0.8134413795992002
 
     estimator = WeightModel(
         RandomForestRegressor(n_estimators=50),
@@ -197,6 +198,7 @@ def test_performance():
     # neighbour_count = 0.1 n_estimators=5  10.742109775543213 0.7971370484169908
     # neighbour_count = 0.1 n_estimators=50  87.76663708686829 0.8333164789667881
     # neighbour_count = 0.01 n_estimators=50  13.869909524917603 0.8240376380492497
+    # neighbour_count = 0.1 n_estimators=50  34.99542546272278 0.8096408618045396
 
     estimator = WeightModel(
         RidgeCV(),
