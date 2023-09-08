@@ -2,7 +2,7 @@ from time import time as t
 
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import LinearRegression, Ridge, RidgeCV
+from sklearn.linear_model import RidgeCV
 from sklearn.tree import DecisionTreeRegressor, ExtraTreeRegressor
 
 from georegression.stacking_model import StackingWeightModel
@@ -21,8 +21,6 @@ def test_stacking():
     distance_ratio = None
     bandwidth = None
     neighbour_count = 0.01
-    midpoint = True
-    p = None
 
     model = StackingWeightModel(
         local_estimator,
@@ -31,8 +29,6 @@ def test_stacking():
         distance_ratio,
         bandwidth,
         neighbour_count,
-        midpoint,
-        p,
     )
 
     model.fit(X, y_true, [xy_vector, time])
@@ -46,8 +42,6 @@ def test_alpha():
     distance_ratio = None
     bandwidth = None
     neighbour_count = 0.01
-    midpoint = True
-    p = None
 
     model = StackingWeightModel(
         local_estimator,
@@ -56,8 +50,6 @@ def test_alpha():
         distance_ratio,
         bandwidth,
         neighbour_count,
-        midpoint,
-        p,
         alpha=10,
     )
 
@@ -65,7 +57,7 @@ def test_alpha():
     print(f"{model.llocv_score_}, {model.llocv_stacking_}")
 
     for local_estimator in model.local_estimator_list:
-        print(local_estimator.final_estimator.coef_)
+        print(local_estimator.meta_estimator.coef_)
         break
 
     # For alpha=0.1, stacking_score = 0.5750569627981988
@@ -94,8 +86,6 @@ def test_estimator_sample():
     distance_ratio = None
     bandwidth = None
     neighbour_count = 0.1
-    midpoint = True
-    p = None
 
     model = StackingWeightModel(
         local_estimator,
@@ -104,8 +94,6 @@ def test_estimator_sample():
         distance_ratio,
         bandwidth,
         neighbour_count,
-        midpoint,
-        p,
         estimator_sample_rate=0.1,
     )
 
@@ -119,8 +107,6 @@ def test_estimator_sample():
         distance_ratio,
         bandwidth,
         neighbour_count,
-        midpoint,
-        p,
         estimator_sample_rate=0.5,
     )
     model.fit(X, y_true, [xy_vector, time])
@@ -133,8 +119,6 @@ def test_estimator_sample():
         distance_ratio,
         bandwidth,
         neighbour_count,
-        midpoint,
-        p,
         estimator_sample_rate=None,
     )
     model.fit(X, y_true, [xy_vector, time])
@@ -163,18 +147,6 @@ def test_performance():
     estimator.fit(X, y_true, [xy_vector, time])
     t2 = t()
     print(t2 - t1, estimator.llocv_score_, estimator.llocv_stacking_)
-    # 917.4381189346313 0.7218072208798815 0.8274797786820569
-    # 185.95322585105896 0.7314718925728154 0.8160008434522774
-    # 471.748841047287 0.7170324025502195 0.8186682469210496
-    # neighbour_count = 0.01 12.433058261871338 0.7264394281767108 0.9421304744738035
-    # neighbour_count = 0.1 59.23662233352661 0.7549265112954625 0.8533792294300071
-    # neighbour_count = 0.1 estimator_sample_rate=0.1 17.0358464717865 0.7530776263728781 0.8559844494270573
-    # After implement the neighbour leave out to fix the test leaking.
-    # neighbour_count = 0.01 neighbour_leave_out_rate=0.1 9.614805459976196 0.7025745058476021 0.8849390576510993
-    # neighbour_count = 0.1 neighbour_leave_out_rate=0.1 15.770824909210205 0.7680928707118291 0.8556669876852211
-    # After fixing the neighbour estimator selection bug.
-    # neighbour_count = 0.1 neighbour_leave_out_rate=0.1 14.831573724746704 0.7644013832778737 0.8101877198579331
-    # neighbour_count = 0.01 neighbour_leave_out_rate=0.1 9.51764440536499 0.7088130603052478 0.7641255806160333
     # neighbour_count = 0.1 neighbour_leave_out_rate=0.1 17.498192310333252 0.7670304978651743 0.8134413795992002
 
     estimator = WeightModel(
@@ -190,15 +162,7 @@ def test_performance():
     t3 = t()
 
     print(t3 - t2, estimator.llocv_score_)
-    # 1075.0753190517426 0.8228107533011373
-    # 1071.8284921646118 0.8242928357531293
-    # neighbour_count = 0.01 28.833017110824585 0.8278781002714682
-    # neighbour_count = 0.1 183.82665371894836 0.8354290564175364
-    # neighbour_count = 0.01 n_estimators=5  3.1212289333343506 0.7988055718383715
-    # neighbour_count = 0.1 n_estimators=5  10.742109775543213 0.7971370484169908
-    # neighbour_count = 0.1 n_estimators=50  87.76663708686829 0.8333164789667881
-    # neighbour_count = 0.01 n_estimators=50  13.869909524917603 0.8240376380492497
-    # neighbour_count = 0.1 n_estimators=50  34.99542546272278 0.8096408618045396
+    # neighbour_count = 0.1 n_estimators=50 34.99542546272278 0.8096408618045396
 
     estimator = WeightModel(
         RidgeCV(),
@@ -208,17 +172,11 @@ def test_performance():
         bandwidth,
         neighbour_count,
     )
-    # estimator.local_estimator = RidgeCV()
-    # estimator.use_stacking = False
     estimator.fit(X, y_true, [xy_vector, time])
     t4 = t()
+    # neighbour_count = 0.1 5.488587141036987 0.7706704632683226
 
     print(t4 - t3, estimator.llocv_score_)
-    # neighbour_count = 0.01 2.439164876937866 -2355843.4163171016
-    # neighbour_count = 0.1 4.386993885040283 0.7985700705302594
-    # neighbour_count = 0.01 RidgeCV 2.1749119758605957 0.736926407604787
-    # neighbour_count = 0.1 RidgeCV 4.276575803756714 0.800494195041368
-    # neighbour_count = 0.01 RidgeCV 2.18503475189209 0.736926407604787
 
 
 def test_stacking_not_leaking():
@@ -230,8 +188,6 @@ def test_stacking_not_leaking():
     kernel_type = "bisquare"
     distance_ratio = None
     bandwidth = None
-    midpoint = True
-    p = None
 
     def fit_wrapper():
         estimator = StackingWeightModel(
@@ -241,8 +197,6 @@ def test_stacking_not_leaking():
             distance_ratio,
             bandwidth,
             neighbour_count,
-            midpoint,
-            p,
             neighbour_leave_out_rate=leave_out_rate,
         )
 
@@ -271,8 +225,6 @@ def test_stacking_not_leaking():
         distance_ratio,
         bandwidth,
         neighbour_count,
-        midpoint,
-        p,
     )
     t2 = t()
     estimator.fit(X, y_true, [xy_vector, time])
@@ -289,8 +241,6 @@ def test_stacking_not_leaking():
             # fit_wrapper()
             pass
 
-    # neighbour_count = 0.1 leave_out_rate = 0.1
-    # time = 59.72933077812195 llocv_score = 0.8093394316499596 llocv_stacking = 0.9620314987936546
 
 if __name__ == "__main__":
     # test_stacking()

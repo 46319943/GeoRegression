@@ -60,7 +60,7 @@ class StackingWeightModel(WeightModel):
             **kwargs
         )
 
-        self.meta_estimator_list = None
+        self.base_estimator_list = None
         self.stacking_predict_ = None
         self.llocv_stacking_ = None
         self.alpha = alpha
@@ -107,35 +107,29 @@ class StackingWeightModel(WeightModel):
                 weight_matrix, self.neighbour_leave_out_rate
             )
 
-            if not isinstance(neighbour_leave_out, np.ndarray):
+            if isinstance(neighbour_leave_out, csr_array):
                 neighbour_leave_out_ = neighbour_leave_out
 
             # From (i,j) is that i-th observation will not be used to fit the j-th base estimator
             # so that the j-th base estimator will be used for meta-estimator.
             # To (j,i) is that j-th observation will not consider i-th observation as neighbour while fitting base estimator.
-
             if isinstance(neighbour_leave_out, np.ndarray):
                 neighbour_leave_out = neighbour_leave_out.T
             else:
                 # Structure not change for sparse matrix. BUG HERE.
                 neighbour_leave_out = csr_array(neighbour_leave_out.T)
-            # weight_matrix = weight_matrix * ~neighbour_leave_out
 
         t_neighbour_end = time()
         logger.debug("End of Neighbour leave out")
 
-        # TODO: Consider the phenomenon that weight_matrix_local[neighbour_leave_out.nonzero()] is not zero.
-
-        # weight_matrix_local = weight_matrix.copy()
-        # To set the value for sparse matrix, convert it first to lil_array, then convert back to csr_array.
-        # This can make sure the inner structure of csr_array is correct to be able to manipulate directly .
-        # weight_matrix_local = lil_array(weight_matrix_local)
-        # weight_matrix_local[neighbour_leave_out.nonzero()] = 0
-        # weight_matrix_local = csr_array(weight_matrix_local)
-
+        # Do not change the original weight matrix to remain the original neighbour relationship.
+        # Consider the phenomenon that weight_matrix_local[neighbour_leave_out.nonzero()] is not zero?
+        # Because the neighbour relationship is not symmetric.
         weight_matrix_local = weight_matrix.copy()
         weight_matrix_local[neighbour_leave_out.nonzero()] = 0
         if isinstance(weight_matrix_local, csr_array):
+            # To set the value for sparse matrix, convert it first to lil_array, then convert back to csr_array.
+            # This can make sure the inner structure of csr_array is correct to be able to manipulate directly .
             # Or just use eliminate_zeros() to remove the zero elements.
             weight_matrix_local.eliminate_zeros()
 
@@ -166,7 +160,7 @@ class StackingWeightModel(WeightModel):
             neighbour_matrix.eliminate_zeros()
 
         self.cache_estimator = cache_estimator
-        self.meta_estimator_list = self.local_estimator_list
+        self.base_estimator_list = self.local_estimator_list
         self.local_estimator_list = None
 
         # Iterate the stacking estimator list to get the transformed X meta.
@@ -179,10 +173,10 @@ class StackingWeightModel(WeightModel):
             X_meta = np.zeros((self.N, self.N))
             for i in range(self.N):
                 if second_neighbour_matrix[i].any():
-                    X_meta[second_neighbour_matrix[i], i] = self.meta_estimator_list[
+                    X_meta[second_neighbour_matrix[i], i] = self.base_estimator_list[
                         i
                     ].predict(X[second_neighbour_matrix[i]])
-        else:
+        elif isinstance(second_neighbour_matrix, csr_array):
             prediction_result = list()
             for i in range(self.N):
                 if (
@@ -190,7 +184,7 @@ class StackingWeightModel(WeightModel):
                     != second_neighbour_matrix.indptr[i + 1]
                 ):
                     prediction_result.append(
-                        self.meta_estimator_list[i].predict(
+                        self.base_estimator_list[i].predict(
                             X[
                                 second_neighbour_matrix.indices[
                                     second_neighbour_matrix.indptr[
@@ -231,7 +225,6 @@ class StackingWeightModel(WeightModel):
                 # TODO: Use RidgeCV to find best alpha
                 final_estimator = Ridge(alpha=self.alpha, solver="lsqr")
 
-                # TODO: Consider whether to add the meta prediction of the local meta estimator.
                 t_indexing_start = time()
 
                 neighbour_sample = neighbour_matrix[[i], :]
@@ -275,7 +268,7 @@ class StackingWeightModel(WeightModel):
                 # TODO: Unordered coef for each estimator.
                 stacking_estimator = StackingEstimator(
                     final_estimator,
-                    list(compress(self.meta_estimator_list, neighbour_sample)),
+                    list(compress(self.base_estimator_list, neighbour_sample)),
                 )
                 local_stacking_estimator_list.append(stacking_estimator)
 
@@ -288,10 +281,8 @@ class StackingWeightModel(WeightModel):
 
         elif isinstance(neighbour_leave_out, csr_array) and not self.use_numba:
             for i in range(self.N):
-                # TODO: Use RidgeCV to find best alpha
-                final_estimator = Ridge(alpha=self.alpha, solver='cholesky')
+                final_estimator = Ridge(alpha=self.alpha, solver='lsqr')
 
-                # TODO: Consider whether to add the meta prediction of the local meta estimator.
                 t_indexing_start = time()
 
                 # neighbour_sample = neighbour_leave_out[:, [i]]
@@ -330,7 +321,7 @@ class StackingWeightModel(WeightModel):
                 stacking_estimator = StackingEstimator(
                     final_estimator,
                     [
-                        self.meta_estimator_list[leave_out_index]
+                        self.base_estimator_list[leave_out_index]
                         for leave_out_index in neighbour_leave_out_indices
                     ],
                 )
@@ -432,14 +423,9 @@ class StackingWeightModel(WeightModel):
                         ]
 
                         # Find the index of the first element equals i
-                        has_found = False
                         for available_iter_i in range(len(neighbour_available_indices)):
                             if neighbour_available_indices[available_iter_i] == i:
-                                has_found = True
                                 break
-
-                        if has_found == False:
-                            print()
 
                         X_predict[X_predict_row_index] = X_meta_T_data[
                             X_meta_T_indptr[leave_out_indices[X_predict_row_index]]
@@ -475,10 +461,25 @@ class StackingWeightModel(WeightModel):
 
             self.stacking_predict_ = np.array(y_predict_list)
             self.llocv_stacking_ = r2_score(self.y_sample_, self.stacking_predict_)
-            # TODO
-            # self.local_estimator_list = local_stacking_estimator_list
+            self.local_estimator_list = []
+            for i in range(self.N):
+                final_estimator = Ridge(alpha=self.alpha, solver="cholesky")
+                final_estimator.coef_ = coef_list[i]
+                final_estimator.intercept_ = intercept_list[i]
 
-            print(self.llocv_stacking_)
+                stacking_estimator = StackingEstimator(
+                    final_estimator,
+                    [
+                        self.base_estimator_list[leave_out_index]
+                        for leave_out_index in neighbour_leave_out_.indices[
+                            neighbour_leave_out_.indptr[i] : neighbour_leave_out_.indptr[
+                                i + 1
+                            ]
+                        ]
+                    ],
+                )
+
+                local_stacking_estimator_list.append(stacking_estimator)
 
         # Log the time elapsed in a single line
         logger.debug(
@@ -502,11 +503,11 @@ class StackingWeightModel(WeightModel):
 
 
 class StackingEstimator(BaseEstimator):
-    def __init__(self, final_estimator, meta_estimators):
-        self.final_estimator = final_estimator
-        self.meta_estimators = meta_estimators
+    def __init__(self, meta_estimator, base_estimators):
+        self.meta_estimator = meta_estimator
+        self.base_estimators = base_estimators
 
     def predict(self, X):
-        X_meta = [meta_estimator.predict(X) for meta_estimator in self.meta_estimators]
+        X_meta = [meta_estimator.predict(X) for meta_estimator in self.base_estimators]
         X_meta = np.hstack(X_meta)
-        return self.final_estimator.predict(X_meta)
+        return self.meta_estimator.predict(X_meta)
