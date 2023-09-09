@@ -154,9 +154,10 @@ def compound_weight(distance_matrices: list[np.ndarray], kernel_type: Union[str,
         for dim in range(dimension):
             if isinstance(distance_matrices[0], da.Array):
                 weights.append(
-                    wait_on(
+                    # Need to wait on?
+                    # wait_on(
                         weight_by_distance(distance_matrices[dim], kernel_type[dim], bandwidth[dim], neighbour_count[dim])
-                    )
+                    # )
                 )
             else:
                 weights.append(
