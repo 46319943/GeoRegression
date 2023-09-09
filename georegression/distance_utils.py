@@ -1,5 +1,6 @@
 # TODO: https://jaykmody.com/blog/distance-matrices-with-numpy/
 # TODO: https://stackoverflow.com/questions/22720864/efficiently-calculating-a-euclidean-distance-matrix-using-numpy
+# TODO: Ref to https://github.com/talboger/fastdist and https://github.com/numba/numba-scipy/issues/38#issuecomment-623569703 to speed up by parallel computing
 
 import numpy as np
 from numba import njit
