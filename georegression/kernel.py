@@ -87,6 +87,7 @@ def adaptive_bandwidth(distance: np.ndarray, neighbour_count: Union[int, float])
     """
 
     if isinstance(distance, da.Array):
+        # TODO: Use sorted matrix to speed up the calculation
         # Support for dask array
         # Duplicated coordinate is not supported
         if isinstance(neighbour_count, float):
