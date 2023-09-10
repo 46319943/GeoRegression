@@ -101,6 +101,9 @@ def _fit(X, y, estimator_list, weight_matrix,
             )
             task_list.append(task)
 
+        # TODO: Iteration will use large volumn of memory. Consider use generator to reduce memory usage.
+        # TODO: No parallel was observed.
+
         parallel_result = Parallel(n_jobs)(task_list)
 
     local_predict, local_estimator_list = list(zip(*parallel_result))
