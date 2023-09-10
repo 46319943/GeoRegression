@@ -87,18 +87,19 @@ def adaptive_bandwidth(distance: np.ndarray, neighbour_count: Union[int, float])
     """
 
     if isinstance(distance, da.Array):
-        # TODO: Use sorted matrix to speed up the calculation
         # Support for dask array
         # Duplicated coordinate is not supported
+
+        # TODO: Use sorted matrix to speed up the calculation
+        N = distance.shape[0]
         if isinstance(neighbour_count, float):
-            bandwidth = distance.map_blocks(
-                np.quantile,
-                neighbour_count,
-                axis=1,
-                keepdims=False,
-                drop_axis=1,
-            )
-            return bandwidth
+            neighbour_count = math.ceil(N * neighbour_count)
+
+        if neighbour_count > N:
+            raise Exception("Invalid neighbour count")
+
+        bandwidth = distance[:, neighbour_count - 1]
+        return bandwidth
 
     if neighbour_count <= 0:
         raise Exception("Invalid neighbour count")
