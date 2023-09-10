@@ -4,6 +4,8 @@ from typing import Union
 import dask.array as da
 import numpy as np
 
+from slab_utils.quick_logger import logger
+
 KERNEL_TYPE_ENUM = [
     "linear",
     "uniform",
@@ -73,7 +75,7 @@ def kernel_function(
     return weight
 
 
-def adaptive_bandwidth(distance: np.ndarray, neighbour_count: Union[int, float]) -> float:
+def adaptive_bandwidth(distance: np.ndarray, neighbour_count: Union[int, float], distance_sorted: da.array) -> float:
     """
     Find the bandwidth to include the specified number of neighbour.
 
@@ -89,17 +91,29 @@ def adaptive_bandwidth(distance: np.ndarray, neighbour_count: Union[int, float])
     if isinstance(distance, da.Array):
         # Support for dask array
         # Duplicated coordinate is not supported
-
-        # TODO: Use sorted matrix to speed up the calculation
         N = distance.shape[0]
-        if isinstance(neighbour_count, float):
-            neighbour_count = math.ceil(N * neighbour_count)
 
-        if neighbour_count > N:
-            raise Exception("Invalid neighbour count")
+        if distance_sorted is not None:
+            # Must be the sorted distance matrix
+            if isinstance(neighbour_count, float):
+                neighbour_count = math.ceil(N * neighbour_count)
 
-        bandwidth = distance[:, neighbour_count - 1]
-        return bandwidth
+            if neighbour_count > N:
+                raise Exception("Invalid neighbour count")
+
+            bandwidth = distance_sorted[:, neighbour_count - 1]
+            return bandwidth
+        else:
+            logger.warning('Sorted distance matrix is not provided, requiring longer time to perform quantile function')
+
+            bandwidth = distance.map_blocks(
+                np.quantile,
+                neighbour_count,
+                axis=1,
+                keepdims=False,
+                drop_axis=1,
+            )
+            return bandwidth
 
     if neighbour_count <= 0:
         raise Exception("Invalid neighbour count")
@@ -115,12 +129,17 @@ def adaptive_bandwidth(distance: np.ndarray, neighbour_count: Union[int, float])
     return bandwidth
 
 
-def adaptive_kernel(distance_vector: np.ndarray, neighbour_count: Union[int, float], kernel_type: str) -> np.ndarray:
+def adaptive_kernel(
+        distance: np.ndarray,
+        neighbour_count: Union[int, float],
+        kernel_type: str,
+        distance_sorted: da.array=None
+) -> np.ndarray:
     """
     Deduce the bandwidth from the neighbour count and calculate weight using kernel function.
 
     Args:
-        distance_vector:
+        distance:
         neighbour_count:
         kernel_type:
 
@@ -128,5 +147,5 @@ def adaptive_kernel(distance_vector: np.ndarray, neighbour_count: Union[int, flo
 
     """
 
-    bandwidth = adaptive_bandwidth(distance_vector, neighbour_count)
-    return kernel_function(distance_vector, bandwidth, kernel_type)
+    bandwidth = adaptive_bandwidth(distance, neighbour_count, distance_sorted)
+    return kernel_function(distance, bandwidth, kernel_type)

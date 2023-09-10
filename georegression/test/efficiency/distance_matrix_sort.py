@@ -1,26 +1,71 @@
+import dask
 import dask.array as da
+from distributed import LocalCluster, Client
 import numpy as np
 
-from georegression.distance_utils import distance_matrix
+from georegression.distance_utils import distance_matrix, distance_matrices
 from georegression.kernel import adaptive_bandwidth
+from georegression.weight_matrix import compound_weight
+from scipy import sparse
+
+
 
 
 def test_distance_matrix_using_dask():
-    count = 1000
+    dask.config.set({"distributed.comm.retry.count": 10})
+    dask.config.set({"distributed.comm.timeouts.connect": 30})
+    dask.config.set({"distributed.worker.memory.terminate": False})
+    
+    cluster = LocalCluster(local_directory="F://dask")
+    client = Client(cluster)
+    print(client.dashboard_link)
 
-    distance_matrix(
-        da.from_array(np.random.random((count, 2)), chunks=(250, 2)),
-        da.from_array(np.random.random((count, 2)), chunks=(250, 2)),
+    count = 50000
+
+    distance_matrices(
+        [da.from_array(np.random.random((count, 2)), chunks=(4000, 2))],
+        [da.from_array(np.random.random((count, 2)), chunks=(4000, 2))],
         use_dask=True,
-        local_directory="F://dask",
-        filename="test_distance_matrix",
+        cache_sort=True,
+        filepath="F://test_distance_matrix",
+        overwrite=True,
     )
 
 
 def test_weight_matrix_using_sorted_distance_matrix():
-    distance_matrix_sorted = da.from_zarr("F://dask//test_distance_matrix")
-    bandwidth = adaptive_bandwidth(distance_matrix_sorted, 2)
-    print(bandwidth.compute())
+    dask.config.set({"distributed.comm.retry.count": 10})
+    dask.config.set({"distributed.comm.timeouts.connect": 30})
+    dask.config.set({"distributed.worker.memory.terminate": False})
+    
+    cluster = LocalCluster(local_directory="F://dask")
+    client = Client(cluster)
+    print(client.dashboard_link)
+
+    distance_matrix = da.from_zarr("F://dask//test_distance_matrix.zarr")
+    distance_matrix_sorted = da.from_zarr("F://dask//test_distance_matrix_sorted.zarr")
+
+    # bandwidth = adaptive_bandwidth(distance_matrix_sorted, 2)
+    # print(bandwidth.compute())
+
+    weight_matrix = compound_weight(
+        [distance_matrix],
+        "bisquare", neighbour_count=0.01,
+        distance_matrices_sorted=[distance_matrix_sorted]
+    )
+    weight_matrix_sparse = weight_matrix.map_blocks(sparse.coo_matrix)
+    print(weight_matrix_sparse.compute())
+
+
+def test_dask_client():
+    dask.config.set({"distributed.comm.retry.count": 10})
+    dask.config.set({"distributed.comm.timeouts.connect": 30})
+    dask.config.set({"distributed.worker.memory.terminate": False})
+    
+    cluster = LocalCluster(local_directory=kwargs.get("local_directory", None))
+    client = Client(cluster)
+    print(client.dashboard_link)
+
+    Client.get()
 
 
 if __name__ == "__main__":
