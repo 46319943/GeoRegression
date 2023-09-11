@@ -63,7 +63,7 @@ def kernel_function(
     elif kernel_type == "bisquare":
         # Optimize for dask array
         if isinstance(normalize_distance, da.Array):
-            normalize_distance[normalize_distance < 1] = 1
+            normalize_distance[normalize_distance > 1] = 1
             weight = (1 - normalize_distance**2) ** 2
 
             # It will never be negative!!!

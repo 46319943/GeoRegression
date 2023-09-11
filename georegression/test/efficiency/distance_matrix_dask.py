@@ -28,7 +28,9 @@ def test_dask_inner_graph():
     distance_matrix = generate_distance_matrix()
     weight_matrix = compound_weight([distance_matrix], "bisquare", neighbour_count=0.1)
 
-    weight_matrix.map_blocks(sparse.coo_matrix).compute()
+    print(
+        weight_matrix.map_blocks(sparse.coo_matrix).compute()
+    )
 
     print()
 
