@@ -21,7 +21,7 @@ def kernel_function(
     distance: np.ndarray,
     bandwidth: Union[float, list[float], np.ndarray],
     kernel_type: str,
-) -> np.ndarray:
+) -> Union[np.ndarray, da.Array]:
     """
     Using kernel function to calculate the weight
 
@@ -61,11 +61,17 @@ def kernel_function(
     elif kernel_type == "boxcar":
         weight = np.ones_like(normalize_distance)
     elif kernel_type == "bisquare":
-        weight = (1 - normalize_distance**2) ** 2
         # Optimize for dask array
-        if isinstance(weight, da.Array):
-            weight[weight < 0] = 0
-        return weight
+        if isinstance(normalize_distance, da.Array):
+            normalize_distance[normalize_distance < 1] = 1
+            weight = (1 - normalize_distance**2) ** 2
+
+            # It will never be negative!!!
+            # weight[weight < 0] = 0
+
+            return weight
+
+        weight = (1 - normalize_distance**2) ** 2
     elif kernel_type == "tricube":
         weight = (1 - np.abs(normalize_distance) ** 3) ** 3
     else:
