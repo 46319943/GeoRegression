@@ -38,7 +38,7 @@ def fit_local_estimator(
 def _fit(X, y, estimator_list, weight_matrix,
          local_indices=None, cache_estimator=False,
          X_predict=None,
-         n_jobs=-1):
+         n_jobs=None, n_patches=None):
     """
     Fit the model using provided estimators and weight matrix.
 
@@ -53,6 +53,9 @@ def _fit(X, y, estimator_list, weight_matrix,
     Returns:
 
     """
+
+    if n_jobs is not None and n_patches is not None:
+        raise ValueError("Cannot specify both `n_jobs` and `n_patches`")
 
     t_start = time()
 
@@ -70,45 +73,109 @@ def _fit(X, y, estimator_list, weight_matrix,
 
     # Parallel run the job. return [(prediction, estimator), (), ...]
     if isinstance(weight_matrix, np.ndarray):
-        parallel_result = Parallel(n_jobs)(
-            delayed(fit_local_estimator)(
-                estimator, X[neighbour_mask], y[neighbour_mask], local_x=x,
-                sample_weight=row_weight[neighbour_mask],
-                return_estimator=cache_estimator
+        if n_jobs is not None:
+            parallel_result = Parallel(n_jobs)(
+                delayed(fit_local_estimator)(
+                    estimator, X[neighbour_mask], y[neighbour_mask], local_x=x,
+                    sample_weight=row_weight[neighbour_mask],
+                    return_estimator=cache_estimator
+                )
+                for index, estimator, neighbour_mask, row_weight, x in
+                zip(local_indices, estimator_list, neighbour_matrix, weight_matrix, X_predict)
+                if index in local_indices
             )
-            for index, estimator, neighbour_mask, row_weight, x in
-            zip(local_indices, estimator_list, neighbour_matrix, weight_matrix, X_predict)
-            if index in local_indices
-        )
+            local_predict, local_estimator_list = list(zip(*parallel_result))
+        else:
+            def batch_wrapper(local_indices):
+                local_prediction_list = []
+                local_estimator_list = []
+                for i in local_indices:
+                    estimator = estimator_list[i]
+                    neighbour_mask = neighbour_matrix[i]
+                    row_weight = weight_matrix[i]
+                    x = X_predict[i]
+                    local_predict, local_estimator = fit_local_estimator(
+                        estimator, X[neighbour_mask], y[neighbour_mask], local_x=x,
+                        sample_weight=row_weight[neighbour_mask],
+                        return_estimator=cache_estimator
+                    )
+                    local_prediction_list.append(local_predict)
+                    local_estimator_list.append(local_estimator)
+
+                return local_prediction_list, local_estimator_list
+
+            local_indices_batch_list = np.array_split(local_indices, n_patches)
+            parallel_batch_result = Parallel(n_patches)(
+                delayed(batch_wrapper)(local_indices_batch) for local_indices_batch in local_indices_batch_list
+            )
+
+            local_predict = []
+            local_estimator_list = []
+            for local_prediction_batch, local_estimator_batch in parallel_batch_result:
+                local_predict.extend(local_prediction_batch)
+                local_estimator_list.extend(local_estimator_batch)
     else:
         # Make the task a list instead of a generator will speed up a little.
         # Use a temporal variable to save the index should speed up a lot.
         # Use native way to index also should speed up a lot.
 
-        def task_wrapper():
-            for i in local_indices:
-                estimator = estimator_list[i]
-                neighbour_mask = neighbour_matrix.indices[
-                    neighbour_matrix.indptr[i]:neighbour_matrix.indptr[i + 1]
-                ]
-                row_weight = weight_matrix.data[
-                    weight_matrix.indptr[i]:weight_matrix.indptr[i + 1]
-                ]
-                x = X_predict[i]
-                task = delayed(fit_local_estimator)(
-                    estimator, X[neighbour_mask], y[neighbour_mask], local_x=x,
-                    sample_weight=row_weight,
-                    return_estimator=cache_estimator
-                )
-                yield task
+        if n_jobs is not None:
+            def task_wrapper():
+                for i in local_indices:
+                    estimator = estimator_list[i]
+                    neighbour_mask = neighbour_matrix.indices[
+                        neighbour_matrix.indptr[i]:neighbour_matrix.indptr[i + 1]
+                    ]
+                    row_weight = weight_matrix.data[
+                        weight_matrix.indptr[i]:weight_matrix.indptr[i + 1]
+                    ]
+                    x = X_predict[i]
+                    task = delayed(fit_local_estimator)(
+                        estimator, X[neighbour_mask], y[neighbour_mask], local_x=x,
+                        sample_weight=row_weight,
+                        return_estimator=cache_estimator
+                    )
+                    yield task
+            parallel_result = Parallel(n_jobs)(task_wrapper())
+            local_predict, local_estimator_list = list(zip(*parallel_result))
+        else:
+            def batch_wrapper(local_indices):
+                local_prediction_list = []
+                local_estimator_list = []
+                for i in local_indices:
+                    estimator = estimator_list[i]
+                    neighbour_mask = neighbour_matrix.indices[
+                                     neighbour_matrix.indptr[i]:neighbour_matrix.indptr[i + 1]
+                                     ]
+                    row_weight = weight_matrix.data[
+                                 weight_matrix.indptr[i]:weight_matrix.indptr[i + 1]
+                                 ]
+                    x = X_predict[i]
+                    local_predict, local_estimator = fit_local_estimator(
+                        estimator, X[neighbour_mask], y[neighbour_mask], local_x=x,
+                        sample_weight=row_weight,
+                        return_estimator=cache_estimator
+                    )
+                    local_prediction_list.append(local_predict)
+                    local_estimator_list.append(local_estimator)
 
+                return local_prediction_list, local_estimator_list
 
-        # TODO: Iteration will use large volumn of memory. Consider use generator to reduce memory usage.
-        # TODO: No parallel was observed.
+            # Split the local indices.
+            local_indices_batch_list = np.array_split(local_indices, n_patches)
+            parallel_batch_result = Parallel(n_patches)(
+                delayed(batch_wrapper)(local_indices_batch) for local_indices_batch in local_indices_batch_list
+            )
 
-        parallel_result = Parallel(n_jobs)(task_wrapper())
+            local_predict = []
+            local_estimator_list = []
+            for local_prediction_batch, local_estimator_batch in parallel_batch_result:
+                local_predict.extend(local_prediction_batch)
+                local_estimator_list.extend(local_estimator_batch)
 
-    local_predict, local_estimator_list = list(zip(*parallel_result))
+        # No parallel was observed. It's found later that it is probably caused by the indexing and transferring bandwidth,
+        # because it only happens when the data is large.
+        # TODO: Manually split the task into batches and use parallel to speed up.
 
     t_end = time()
     logger.debug(f"Parallel fit time: {t_end - t_start}")
@@ -166,7 +233,7 @@ class WeightModel(BaseEstimator, RegressorMixin):
                  sample_local_rate=None,
                  cache_data=False,
                  cache_estimator=False,
-                 n_jobs=-1,
+                 n_jobs=None, n_patches=None,
                  *args, **kwargs):
 
         # Parameters of the model
@@ -183,6 +250,9 @@ class WeightModel(BaseEstimator, RegressorMixin):
         self.cache_data = cache_data
         self.cache_estimator = cache_estimator
         self.n_jobs = n_jobs
+        if n_jobs is None and n_patches is None:
+            n_patches = 6
+        self.n_patches = n_patches
 
         # Attributes of the model
         self.is_fitted_ = None
@@ -278,7 +348,7 @@ class WeightModel(BaseEstimator, RegressorMixin):
         # Reduce the expense of resource allocation between processes.
         self.local_predict_, self.local_estimator_list = _fit(
             X, y, estimator_list, self.weight_matrix_, self.local_indices_,
-            cache_estimator=self.cache_estimator
+            cache_estimator=self.cache_estimator, n_jobs=self.n_jobs, n_patches=self.n_patches
         )
         self.local_predict_ = np.array(self.local_predict_).squeeze()
 

@@ -206,14 +206,9 @@ class StackingWeightModel(WeightModel):
         t_predict_e = time()
         logger.debug("End of Meta estimator prediction")
 
-        t_transpose_start = time()
         if isinstance(X_meta, np.ndarray):
             X_meta_T = X_meta.transpose().copy(order="C")
 
-        t_transpost_end = time()
-        logger.debug(
-            "End of Transpose meta estimator prediction",
-        )
 
         local_stacking_predict = []
         local_stacking_estimator_list = []
@@ -330,13 +325,9 @@ class StackingWeightModel(WeightModel):
                 indexing_time = indexing_time + t_indexing_end - t_indexing_start
                 stacking_time = stacking_time + t_stacking_end - t_stacking_start
 
-                # break
-
             self.stacking_predict_ = local_stacking_predict
             self.llocv_stacking_ = r2_score(self.y_sample_, local_stacking_predict)
             self.local_estimator_list = local_stacking_estimator_list
-
-            print(self.llocv_stacking_)
 
         else:
             @njit(parallel=True)
@@ -486,13 +477,11 @@ class StackingWeightModel(WeightModel):
             "Leave local out elapsed: %s \n"
             "Second order neighbour matrix elapsed: %s \n"
             "Meta estimator prediction elapsed: %s \n"
-            "Transpose meta estimator prediction elapsed: %s \n"
             "Indexing time: %s \n"
             "Stacking time: %s \n",
             t_neighbour_end - t_neighbour_start,
             t_second_order_end - t_second_order_start,
             t_predict_e - t_predict_s,
-            t_transpost_end - t_transpose_start,
             indexing_time,
             stacking_time,
         )
