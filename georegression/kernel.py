@@ -121,6 +121,7 @@ def adaptive_bandwidth(distance: np.ndarray, neighbour_count: Union[int, float],
                 axis=1,
                 keepdims=True,
                 drop_axis=1,
+                new_axis=1,
             )
             return bandwidth
 

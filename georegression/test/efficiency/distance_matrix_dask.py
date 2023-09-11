@@ -35,40 +35,56 @@ def test_dask_inner_graph():
     print()
 
 
-def test_quantile_speed_up():
+def test_quantile_speed_up_1():
     spatial_distance_matrix = da.from_zarr("F://dask//spatial_distance_matrix.zarr")
-    spatial_distance_matrix = wait_on(spatial_distance_matrix)
-    temporal_distance_matrix = da.from_zarr("F://dask//temporal_distance_matrix.zarr")
-    temporal_distance_matrix = wait_on(temporal_distance_matrix)
+    # spatial_distance_matrix = wait_on(spatial_distance_matrix)
+    # temporal_distance_matrix = da.from_zarr("F://dask//temporal_distance_matrix.zarr")
+    # temporal_distance_matrix = wait_on(temporal_distance_matrix)
 
     spatial_distance_matrix_sorted = da.from_zarr("F://dask//spatial_distance_matrix_sorted.zarr")
-    spatial_distance_matrix_sorted = wait_on(spatial_distance_matrix_sorted)
-    temporal_distance_matrix_sorted = da.from_zarr("F://dask//temporal_distance_matrix_sorted.zarr")
-    temporal_distance_matrix_sorted = wait_on(temporal_distance_matrix_sorted)
+    # spatial_distance_matrix_sorted = wait_on(spatial_distance_matrix_sorted)
+    # temporal_distance_matrix_sorted = da.from_zarr("F://dask//temporal_distance_matrix_sorted.zarr")
+    # temporal_distance_matrix_sorted = wait_on(temporal_distance_matrix_sorted)
 
     t1 = time()
-    result = compound_weight([spatial_distance_matrix, temporal_distance_matrix], "bisquare", neighbour_count=0.1, distance_matrices_sorted=[spatial_distance_matrix_sorted, temporal_distance_matrix_sorted])
+    result = compound_weight([spatial_distance_matrix], "bisquare", neighbour_count=0.05, distance_matrices_sorted=[spatial_distance_matrix_sorted])
     t2 = time()
     print(t2 - t1)
     
-    # result_sparse = result.map_blocks(sparse.coo_matrix)
+    result_sparse = result.map_blocks(sparse.coo_matrix)
     
     t3 = time()
-    result.compute()
-    # print(result_sparse.compute())
+    print(result_sparse.compute())
     t4 = time()
     print(t4 - t3)
+    # 224.76215386390686
+
+def test_quantile_speed_up_2():
+    spatial_distance_matrix = da.from_zarr("F://dask//spatial_distance_matrix.zarr")
+
+    spatial_distance_matrix_sorted = da.from_zarr(
+        "F://dask//spatial_distance_matrix_sorted.zarr"
+    )
+
+    t1 = time()
+    result = compound_weight(
+        [spatial_distance_matrix],
+        "bisquare",
+        neighbour_count=0.05,
+    )
+    t2 = time()
+    print(t2 - t1)
+
+    result_sparse = result.map_blocks(sparse.coo_matrix)
+
+    t3 = time()
+    print(result_sparse.compute())
+    t4 = time()
+    print(t4 - t3)
+    # 264.519348859787
 
 def test_dask_compatiblity():
-    # 86 seconds for count=50000
-    # 680 seconds for count=100000
-    count = 100000
-    distance_matrix = dask_distance.cdist(
-        da.from_array(np.random.random((count, 2)), chunks={0: 4000, 1: 2}),
-        da.from_array(np.random.random((count, 2)), chunks={0: 4000, 1: 2}),
-        "euclidean",
-    )
-    distance_matrix = distance_matrix.rechunk({0: "auto", 1: -1})
+    distance_matrix = generate_distance_matrix(100000)
     distance_matrix = wait_on(distance_matrix)
 
     t1 = time()
@@ -162,8 +178,9 @@ if __name__ == "__main__":
     print(client.dashboard_link)
 
     with get_task_stream(plot="save", filename="task-stream.html") as ts:
-        test_dask_inner_graph()
-        # test_quantile_speed_up()
+        # test_dask_inner_graph()
+        # test_quantile_speed_up_1()
+        test_quantile_speed_up_2()
         # test_dask_compatiblity()
         # test_dask_map_block_valid()
 
