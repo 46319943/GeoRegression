@@ -143,6 +143,9 @@ def compound_weight(
     if not isinstance(neighbour_count, list):
         neighbour_count = [neighbour_count] * dimension
 
+    if not isinstance(distance_matrices_sorted, list):
+        distance_matrices_sorted = [distance_matrices_sorted] * dimension
+
     weights = []
     for dim in range(dimension):
         if isinstance(distance_matrices[0], da.Array):

@@ -38,9 +38,7 @@ def kernel_function(
 
     """
 
-    # Reshape bandwidth to have proper broadcasting in division.
-    bandwidth = bandwidth.reshape((-1, 1))
-
+    # Reshape bandwidth to have proper broadcasting in division. It has been done in previous step.
     normalize_distance = distance / bandwidth
     if isinstance(normalize_distance, da.Array):
         # TODO: Why dask array do not support keyword argument for this method? It can be easily implemented with map_blocks
@@ -56,6 +54,7 @@ def kernel_function(
         weight = np.exp(-0.5 * normalize_distance**2)
     elif kernel_type == "exponential":
         weight = np.exp(-0.5 * np.abs(normalize_distance))
+
     # Compact supported kernel
     elif kernel_type == "linear":
         weight = 1 - normalize_distance
@@ -63,6 +62,10 @@ def kernel_function(
         weight = np.ones_like(normalize_distance)
     elif kernel_type == "bisquare":
         weight = (1 - normalize_distance**2) ** 2
+        # Optimize for dask array
+        if isinstance(weight, da.Array):
+            weight[weight < 0] = 0
+        return weight
     elif kernel_type == "tricube":
         weight = (1 - np.abs(normalize_distance) ** 3) ** 3
     else:
@@ -101,7 +104,7 @@ def adaptive_bandwidth(distance: np.ndarray, neighbour_count: Union[int, float],
             if neighbour_count > N:
                 raise Exception("Invalid neighbour count")
 
-            bandwidth = distance_sorted[:, neighbour_count - 1]
+            bandwidth = distance_sorted[:, [neighbour_count - 1]]
             return bandwidth
         else:
             logger.warning('Sorted distance matrix is not provided, requiring longer time to perform quantile function')
@@ -110,7 +113,7 @@ def adaptive_bandwidth(distance: np.ndarray, neighbour_count: Union[int, float],
                 np.quantile,
                 neighbour_count,
                 axis=1,
-                keepdims=False,
+                keepdims=True,
                 drop_axis=1,
             )
             return bandwidth
@@ -120,9 +123,9 @@ def adaptive_bandwidth(distance: np.ndarray, neighbour_count: Union[int, float],
 
     if isinstance(neighbour_count, float):
         # percentile call the partition function internally,
-        bandwidth = np.quantile(distance, neighbour_count, axis=1, keepdims=False, method='median_unbiased')
+        bandwidth = np.quantile(distance, neighbour_count, axis=1, keepdims=True, method='median_unbiased')
     elif isinstance(neighbour_count, int):
-        bandwidth = np.partition(distance, neighbour_count - 1)[neighbour_count - 1]
+        bandwidth = np.partition(distance, neighbour_count - 1)[:, [neighbour_count - 1]]
     else:
         raise Exception("Invalid neighbour count")
 
