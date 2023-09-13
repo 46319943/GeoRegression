@@ -9,11 +9,13 @@ from sklearn.base import BaseEstimator
 from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score
 from slab_utils.quick_logger import logger
+from joblib import Parallel, delayed
 
 from georegression.neighbour_utils import second_order_neighbour, sample_neighbour
 from georegression.numba_impl import ridge_cholesky
 from georegression.weight_matrix import calculate_compound_weight_matrix
 from georegression.weight_model import WeightModel
+from georegression.numba_impl import r2_score as r2_numba
 
 
 class StackingWeightModel(WeightModel):
@@ -33,7 +35,8 @@ class StackingWeightModel(WeightModel):
         sample_local_rate=None,
         cache_data=False,
         cache_estimator=False,
-        n_jobs=-1,
+        n_jobs=None,
+        n_patches=None,
         alpha=10.0,
         neighbour_leave_out_rate=None,
         estimator_sample_rate=None,
@@ -56,6 +59,7 @@ class StackingWeightModel(WeightModel):
             cache_data=cache_data,
             cache_estimator=cache_estimator,
             n_jobs=n_jobs,
+            n_patches=n_patches,
             *args,
             **kwargs
         )
@@ -63,6 +67,7 @@ class StackingWeightModel(WeightModel):
         self.base_estimator_list = None
         self.stacking_predict_ = None
         self.llocv_stacking_ = None
+        self.fitting_score_stacking_ = None
         self.alpha = alpha
         self.neighbour_leave_out_rate = neighbour_leave_out_rate
         self.estimator_sample_rate = estimator_sample_rate
@@ -169,6 +174,7 @@ class StackingWeightModel(WeightModel):
         # X_meta[i, j] means the prediction of estimator j on data i.
         t_predict_s = time()
 
+        # TODO: Parallelize this part.
         if isinstance(second_neighbour_matrix, np.ndarray):
             X_meta = np.zeros((self.N, self.N))
             for i in range(self.N):
@@ -194,6 +200,44 @@ class StackingWeightModel(WeightModel):
                             ]
                         )
                     )
+
+            # TODO: Why it failed to accelerate?
+            # def batch_wrapper(indices_batch, base_estimator_batch, second_neighbour_matrix, X):
+            #     prediction_result_batch = list()
+            #     for estimator_index ,i in enumerate(indices_batch):
+            #         if (
+            #             second_neighbour_matrix.indptr[i]
+            #             != second_neighbour_matrix.indptr[i + 1]
+            #         ):
+            #             prediction_result_batch.append(
+            #                 base_estimator_batch[estimator_index].predict(
+            #                     X[
+            #                         second_neighbour_matrix.indices[
+            #                             second_neighbour_matrix.indptr[
+            #                                 i
+            #                             ] : second_neighbour_matrix.indptr[i + 1]
+            #                         ]
+            #                     ]
+            #                 )
+            #             )
+            #     return prediction_result_batch
+            #
+            # indices_list = np.array_split(range(self.N), int(self.n_patches / 4))
+            # parallel_batch_result = Parallel(int(self.n_patches / 4))(list(
+            #     delayed(batch_wrapper)(
+            #         indices_batch,
+            #         self.base_estimator_list[indices_batch[0]: indices_batch[-1] + 1],
+            #         second_neighbour_matrix,
+            #         X
+            #     )
+            #     for indices_batch in indices_list
+            # ))
+            # prediction_result = [
+            #     prediction_result
+            #     for batch_result in parallel_batch_result
+            #     for prediction_result in batch_result
+            # ]
+
             X_meta_T = csr_array(
                 (
                     np.hstack(prediction_result),
@@ -405,6 +449,9 @@ class StackingWeightModel(WeightModel):
 
                     coef, intercept = ridge_cholesky(X_fit_T.T, y_fit, alpha, weight_fit)
 
+                    y_fit_predict = np.dot(X_fit_T, coef) + intercept
+                    score_fit = r2_numba(y_fit, y_fit_predict)
+
                     X_predict = np.zeros((len(leave_out_indices),))
                     for X_predict_row_index in range(len(leave_out_indices)):
                         neighbour_available_indices = X_meta_T_indices[
@@ -429,11 +476,11 @@ class StackingWeightModel(WeightModel):
                     intercept_list[i] = intercept
                     y_predict_list[i] = y_predict
 
-                return coef_list, intercept_list, y_predict_list
+                return coef_list, intercept_list, y_predict_list, score_fit
 
             t1 = time()
             # Different solver makes a little difference.
-            coef_list, intercept_list, y_predict_list = stacking_numba(
+            coef_list, intercept_list, y_predict_list, score_fit = stacking_numba(
                 neighbour_leave_out_.indptr,
                 neighbour_leave_out_.indices,
                 neighbour_matrix.indptr,
@@ -451,6 +498,7 @@ class StackingWeightModel(WeightModel):
             logger.debug("Numba running time: %s \n", t2 - t1)
 
             self.stacking_predict_ = np.array(y_predict_list)
+            self.fitting_score_stacking_ = score_fit
             self.llocv_stacking_ = r2_score(self.y_sample_, self.stacking_predict_)
             self.local_estimator_list = []
             for i in range(self.N):

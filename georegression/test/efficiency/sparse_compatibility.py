@@ -85,5 +85,5 @@ def test_stacking_compatibility():
     print()
 
 if __name__ == '__main__':
-    test_compatibility()
-    # test_stacking_compatibility()
+    # test_compatibility()
+    test_stacking_compatibility()

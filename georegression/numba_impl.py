@@ -1,5 +1,5 @@
 import numpy as np
-from numba import njit
+from numba import njit, float64, boolean
 
 
 @njit()
@@ -42,6 +42,15 @@ def ridge_cholesky(X, y, alpha, weight):
     intercept = y_offset - np.dot(X_offset, coef)
 
     return coef, intercept
+
+@njit(float64(float64[::1], float64[::1]), cache=True)
+def r2_score(y_true, y_pred):
+    # https://github.com/jcatankard/NumbaML/blob/main/numbaml/scoring.py
+    """https://scikit-learn.org/stable/modules/generated/sklearn.metrics.r2_score.html#sklearn.metrics.r2_score"""
+    y_mean = np.mean(y_true)
+    total_sum_squares = np.sum((y_true - y_mean) ** 2)
+    residual_sum_squares = np.sum((y_true - y_pred) ** 2)
+    return 1 - (residual_sum_squares / total_sum_squares)
 
 
 if __name__ == '__main__':
