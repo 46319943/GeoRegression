@@ -18,6 +18,7 @@ def test_compatibility():
         [xy_vector, time], [xy_vector, time], "euclidean", "bisquare", None, None, 0.1, None
     )
 
+    # Normal case
     t1 = t()
     estimator = WeightModel(
         ExtraTreeRegressor(max_depth=1, splitter="random"),
@@ -30,6 +31,9 @@ def test_compatibility():
     print(t2 - t1)
     print(estimator.llocv_score_)
 
+    # Sparse case
+    weight_matrix = csr_array(weight_matrix)
+
     t1 = t()
     estimator = WeightModel(
         ExtraTreeRegressor(max_depth=1, splitter="random"),
@@ -37,7 +41,6 @@ def test_compatibility():
         "bisquare",
         neighbour_count=0.1
     )
-    weight_matrix = csr_array(weight_matrix)
     estimator.fit(X, y_true, [xy_vector, time], weight_matrix=weight_matrix)
     t2 = t()
     print(t2 - t1)
@@ -53,6 +56,7 @@ def test_stacking_compatibility():
         0.1, None
     )
 
+    # Normal case
     estimator = StackingWeightModel(
         ExtraTreeRegressor(max_depth=1, splitter="random"),
         neighbour_leave_out_rate=0.1,
@@ -62,21 +66,13 @@ def test_stacking_compatibility():
     print(estimator.llocv_score_)
     print(estimator.llocv_stacking_)
 
+    # Sparse case
     weight_matrix = csr_array(weight_matrix)
 
     estimator = StackingWeightModel(
         ExtraTreeRegressor(max_depth=1, splitter="random"),
         neighbour_leave_out_rate=0.1,
         use_numba=False
-    )
-    estimator.fit(X, y_true, [xy_vector, time], weight_matrix=weight_matrix)
-    print(estimator.llocv_score_)
-    print(estimator.llocv_stacking_)
-
-    estimator = StackingWeightModel(
-        ExtraTreeRegressor(max_depth=1, splitter="random"),
-        neighbour_leave_out_rate=0.1,
-        use_numba=True
     )
     estimator.fit(X, y_true, [xy_vector, time], weight_matrix=weight_matrix)
     print(estimator.llocv_score_)

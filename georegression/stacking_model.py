@@ -393,6 +393,7 @@ class StackingWeightModel(WeightModel):
                 coef_list = [np.empty((0, 0))] * N
                 intercept_list = [np.empty(0)] * N
                 y_predict_list = [np.empty(0)] * N
+                score_fit_list = [.0] * N
 
                 for i in prange(N):
                     leave_out_indices = leave_out_matrix_indices[
@@ -449,8 +450,9 @@ class StackingWeightModel(WeightModel):
 
                     coef, intercept = ridge_cholesky(X_fit_T.T, y_fit, alpha, weight_fit)
 
-                    y_fit_predict = np.dot(X_fit_T, coef) + intercept
-                    score_fit = r2_numba(y_fit, y_fit_predict)
+                    y_fit_predict = np.dot(X_fit_T.T, coef) + intercept
+                    score_fit = r2_numba(y_fit, y_fit_predict.flatten())
+                    score_fit_list[i] = score_fit
 
                     X_predict = np.zeros((len(leave_out_indices),))
                     for X_predict_row_index in range(len(leave_out_indices)):
@@ -476,11 +478,11 @@ class StackingWeightModel(WeightModel):
                     intercept_list[i] = intercept
                     y_predict_list[i] = y_predict
 
-                return coef_list, intercept_list, y_predict_list, score_fit
+                return coef_list, intercept_list, y_predict_list, score_fit_list
 
             t1 = time()
             # Different solver makes a little difference.
-            coef_list, intercept_list, y_predict_list, score_fit = stacking_numba(
+            coef_list, intercept_list, y_predict_list, score_fit_list = stacking_numba(
                 neighbour_leave_out_.indptr,
                 neighbour_leave_out_.indices,
                 neighbour_matrix.indptr,
@@ -498,7 +500,7 @@ class StackingWeightModel(WeightModel):
             logger.debug("Numba running time: %s \n", t2 - t1)
 
             self.stacking_predict_ = np.array(y_predict_list)
-            self.fitting_score_stacking_ = score_fit
+            self.fitting_score_stacking_ = score_fit_list
             self.llocv_stacking_ = r2_score(self.y_sample_, self.stacking_predict_)
             self.local_estimator_list = []
             for i in range(self.N):

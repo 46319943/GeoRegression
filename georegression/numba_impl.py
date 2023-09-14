@@ -43,7 +43,7 @@ def ridge_cholesky(X, y, alpha, weight):
 
     return coef, intercept
 
-@njit(float64(float64[::1], float64[::1]), cache=True)
+@njit()
 def r2_score(y_true, y_pred):
     # https://github.com/jcatankard/NumbaML/blob/main/numbaml/scoring.py
     """https://scikit-learn.org/stable/modules/generated/sklearn.metrics.r2_score.html#sklearn.metrics.r2_score"""
