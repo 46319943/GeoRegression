@@ -3,9 +3,9 @@ import dask.array as da
 from distributed import LocalCluster, Client
 import numpy as np
 
-from georegression.distance_utils import distance_matrix, distance_matrices
+from georegression.distance_utils import _distance_matrix, _distance_matrices
 from georegression.kernel import adaptive_bandwidth
-from georegression.weight_matrix import compound_weight
+from georegression.weight_matrix import weight_matrix_from_distance
 from scipy import sparse
 
 
@@ -22,7 +22,7 @@ def test_distance_matrix_using_dask():
 
     count = 50000
 
-    distance_matrices(
+    _distance_matrices(
         [da.from_array(np.random.random((count, 2)), chunks=(4000, 2))],
         [da.from_array(np.random.random((count, 2)), chunks=(4000, 2))],
         use_dask=True,
@@ -47,7 +47,7 @@ def test_weight_matrix_using_sorted_distance_matrix():
     # bandwidth = adaptive_bandwidth(distance_matrix_sorted, 2)
     # print(bandwidth.compute())
 
-    weight_matrix = compound_weight(
+    weight_matrix = weight_matrix_from_distance(
         [distance_matrix],
         "bisquare", neighbour_count=0.01,
         distance_matrices_sorted=[distance_matrix_sorted]

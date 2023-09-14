@@ -4,14 +4,14 @@ from scipy.sparse import csr_array
 from sklearn.tree import ExtraTreeRegressor
 
 from georegression.test.data import load_HP
-from georegression.weight_matrix import calculate_compound_weight_matrix
+from georegression.weight_matrix import weight_matrix_from_points
 from georegression.weight_model import WeightModel
 
 X, y_true, xy_vector, time = load_HP()
 
 
 def test_performance_n_jobs():
-    weight_matrix = calculate_compound_weight_matrix(
+    weight_matrix = weight_matrix_from_points(
         [xy_vector, time],
         [xy_vector, time],
         "euclidean",
@@ -47,7 +47,7 @@ def test_performance_n_jobs():
     # 0.7732306074996614
 
 def test_performance_n_patches():
-    weight_matrix = calculate_compound_weight_matrix(
+    weight_matrix = weight_matrix_from_points(
         [xy_vector, time],
         [xy_vector, time],
         "euclidean",

@@ -10,7 +10,7 @@ from sklearn.utils.validation import check_X_y
 from slab_utils.quick_logger import logger
 from scipy.sparse import csr_array
 
-from georegression.weight_matrix import calculate_compound_weight_matrix
+from georegression.weight_matrix import weight_matrix_from_points
 
 
 def fit_local_estimator(
@@ -226,7 +226,6 @@ class WeightModel(BaseEstimator, RegressorMixin):
                  distance_ratio=None,
                  bandwidth=None,
                  neighbour_count=None,
-                 midpoint=None,
                  distance_args=None,
                  # Model param
                  leave_local_out=True,
@@ -243,7 +242,6 @@ class WeightModel(BaseEstimator, RegressorMixin):
         self.distance_ratio = distance_ratio
         self.bandwidth = bandwidth
         self.neighbour_count = neighbour_count
-        self.midpoint = midpoint
         self.distance_args = distance_args
         self.leave_local_out = leave_local_out
         self.sample_local_rate = sample_local_rate
@@ -301,6 +299,7 @@ class WeightModel(BaseEstimator, RegressorMixin):
         Returns:
 
         """
+        self.log_before_fitting(X, y, coordinate_vector_list, weight_matrix)
 
         X, y = check_X_y(X, y)
         self.is_fitted_ = True
@@ -318,8 +317,8 @@ class WeightModel(BaseEstimator, RegressorMixin):
             self.coordinate_vector_dimension_ = len(coordinate_vector_list)
 
         if weight_matrix is None:
-            weight_matrix = calculate_compound_weight_matrix(coordinate_vector_list, coordinate_vector_list, self.distance_measure, self.kernel_type, self.distance_ratio, self.bandwidth,
-                                                             self.neighbour_count, self.distance_args)
+            weight_matrix = weight_matrix_from_points(coordinate_vector_list, coordinate_vector_list, self.distance_measure, self.kernel_type, self.distance_ratio, self.bandwidth,
+                                                      self.neighbour_count, self.distance_args)
         self.weight_matrix_ = weight_matrix
         # Set the diagonal value of the weight matrix to exclude the local location to get CV score
         if self.leave_local_out:
@@ -394,8 +393,8 @@ class WeightModel(BaseEstimator, RegressorMixin):
             pass
 
         if weight_matrix is None:
-            weight_matrix = calculate_compound_weight_matrix(coordinate_vector_list, self.coordinate_vector_list, self.distance_measure, self.kernel_type, self.distance_ratio, self.bandwidth,
-                                                             self.neighbour_count, self.distance_args)
+            weight_matrix = weight_matrix_from_points(coordinate_vector_list, self.coordinate_vector_list, self.distance_measure, self.kernel_type, self.distance_ratio, self.bandwidth,
+                                                      self.neighbour_count, self.distance_args)
 
         return np.sum(weight_matrix * local_predict.T, axis=1)
 
@@ -422,8 +421,8 @@ class WeightModel(BaseEstimator, RegressorMixin):
             raise Exception('At least one of coordinate_vector_list or weight_matrix should be provided')
 
         if weight_matrix is None:
-            weight_matrix = calculate_compound_weight_matrix(coordinate_vector_list, self.coordinate_vector_list, self.distance_measure, self.kernel_type, self.distance_ratio, self.bandwidth,
-                                                             self.neighbour_count, self.distance_args)
+            weight_matrix = weight_matrix_from_points(coordinate_vector_list, self.coordinate_vector_list, self.distance_measure, self.kernel_type, self.distance_ratio, self.bandwidth,
+                                                      self.neighbour_count, self.distance_args)
 
         N = X.shape[0]
 
@@ -655,3 +654,51 @@ class WeightModel(BaseEstimator, RegressorMixin):
         self.feature_ice_ = self.local_ice_.transpose((1, 0, 2))
 
         return self.local_ice_
+
+
+    def log_before_fitting(self, X, y, coordinate_vector_list=None, weight_matrix=None):
+        """
+        Log the parameters before fitting.
+        First, construct the log string.
+        Then, log the string.
+        """
+        log_str = f"\nWeight Model start fitting with data:\n" \
+                    f"X.shape: {X.shape}\n"
+
+        log_str += f"\nWeight Model start fitting with parameters:\n" \
+                    f"local_estimator: {self.local_estimator}\n" \
+                    f"leave_local_out: {self.leave_local_out}\n" \
+                    f"sample_local_rate: {self.sample_local_rate}\n" \
+                    f"cache_data: {self.cache_data}\n" \
+                    f"cache_estimator: {self.cache_estimator}\n" \
+                    f"n_jobs: {self.n_jobs}\n" \
+                    f"n_patches: {self.n_patches}\n" \
+                    f"args: {self.args}\n" \
+                    f"kwargs: {self.kwargs}\n"
+
+        # Should not appear here? In weight matrix instead?
+        # if coordinate_vector_list is not None:
+        #     log_str += f"Coordinate Dimension: {len(coordinate_vector_list)}\n"
+        #     for i, coordinate_vector in enumerate(coordinate_vector_list):
+        #         log_str +=  f"coordinate_vector[{i}].shape: {coordinate_vector.shape}\n"
+        #
+        # log_str += f"\nWeight Matrix Info:\n"
+        # if weight_matrix is not None:
+        #     log_str += f"weight_matrix.shape: {weight_matrix.shape}\n"
+        # else:
+        #     log_str += f"distance_measure: {self.distance_measure}\n" \
+        #             f"kernel_type: {self.kernel_type}\n" \
+        #             f"distance_ratio: {self.distance_ratio}\n" \
+        #             f"bandwidth: {self.bandwidth}\n" \
+        #             f"neighbour_count: {self.neighbour_count}\n" \
+        #             f"distance_args: {self.distance_args}\n"
+
+        logger.debug(log_str)
+        return self
+
+
+
+
+
+
+

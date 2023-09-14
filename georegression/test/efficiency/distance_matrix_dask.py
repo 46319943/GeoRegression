@@ -9,7 +9,7 @@ from dask.graph_manipulation import wait_on
 from distributed import get_task_stream
 from scipy import sparse
 
-from georegression.weight_matrix import compound_weight
+from georegression.weight_matrix import weight_matrix_from_distance
 
 
 def generate_distance_matrix(size: int= 100, rechunk=True):
@@ -26,7 +26,7 @@ def generate_distance_matrix(size: int= 100, rechunk=True):
 
 def test_dask_inner_graph():
     distance_matrix = generate_distance_matrix()
-    weight_matrix = compound_weight([distance_matrix], "bisquare", neighbour_count=0.1)
+    weight_matrix = weight_matrix_from_distance([distance_matrix], "bisquare", neighbour_count=0.1)
 
     print(
         weight_matrix.map_blocks(sparse.coo_matrix).compute()
@@ -47,7 +47,7 @@ def test_quantile_speed_up_1():
     # temporal_distance_matrix_sorted = wait_on(temporal_distance_matrix_sorted)
 
     t1 = time()
-    result = compound_weight([spatial_distance_matrix], "bisquare", neighbour_count=0.05, distance_matrices_sorted=[spatial_distance_matrix_sorted])
+    result = weight_matrix_from_distance([spatial_distance_matrix], "bisquare", neighbour_count=0.05, distance_matrices_sorted=[spatial_distance_matrix_sorted])
     t2 = time()
     print(t2 - t1)
     
@@ -67,7 +67,7 @@ def test_quantile_speed_up_2():
     )
 
     t1 = time()
-    result = compound_weight(
+    result = weight_matrix_from_distance(
         [spatial_distance_matrix],
         "bisquare",
         neighbour_count=0.05,
@@ -93,7 +93,7 @@ def test_distance_optimization_speed_up():
     spatial_distance_matrix_sorted = wait_on(spatial_distance_matrix_sorted)
 
     t1 = time()
-    result = compound_weight(
+    result = weight_matrix_from_distance(
         [spatial_distance_matrix],
         "bisquare",
         neighbour_count=0.05,
@@ -116,7 +116,7 @@ def test_dask_compatiblity():
     distance_matrix = wait_on(distance_matrix)
 
     t1 = time()
-    result = compound_weight([distance_matrix], "bisquare", neighbour_count=0.1)
+    result = weight_matrix_from_distance([distance_matrix], "bisquare", neighbour_count=0.1)
     t2 = time()
     print(t2 - t1)
 

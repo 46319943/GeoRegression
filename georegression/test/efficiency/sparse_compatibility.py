@@ -5,7 +5,7 @@ from sklearn.metrics import r2_score
 
 from georegression.stacking_model import StackingWeightModel
 from georegression.test.data import load_HP
-from georegression.weight_matrix import calculate_compound_weight_matrix
+from georegression.weight_matrix import weight_matrix_from_points
 from georegression.weight_model import WeightModel
 
 from time import time as t
@@ -14,7 +14,7 @@ X, y_true, xy_vector, time = load_HP()
 
 
 def test_compatibility():
-    weight_matrix = calculate_compound_weight_matrix(
+    weight_matrix = weight_matrix_from_points(
         [xy_vector, time], [xy_vector, time], "euclidean", "bisquare", None, None, 0.1, None
     )
 
@@ -48,7 +48,7 @@ def test_compatibility():
 
 
 def test_stacking_compatibility():
-    weight_matrix = calculate_compound_weight_matrix(
+    weight_matrix = weight_matrix_from_points(
         [xy_vector, time],
         [xy_vector, time],
         "euclidean",

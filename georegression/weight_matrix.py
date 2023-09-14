@@ -4,17 +4,18 @@ from typing import Union
 import dask.array as da
 import numpy as np
 from dask.graph_manipulation import wait_on
+from scipy import sparse
 from slab_utils.quick_logger import logger
 
-from georegression.distance_utils import distance_matrices
+from georegression.distance_utils import _distance_matrices
 from georegression.kernel import kernel_function, adaptive_kernel
 
 
-def calculate_compound_weight_matrix(
+def weight_matrix_from_points(
         source_coordinate_vector_list: list[np.ndarray],
-        target_coordinate_vector_list: list[np.ndarray],
-        distance_measure: Union[str, list[str]],
-        kernel_type: Union[str, list[str]],
+        target_coordinate_vector_list: list[np.ndarray] = None,
+        distance_measure: Union[str, list[str]] = None,
+        kernel_type: Union[str, list[str]] = None,
         distance_ratio: Union[float, list[float]] = None,
         bandwidth: Union[float, list[float]] = None,
         neighbour_count: Union[float, list[float]] = None,
@@ -39,24 +40,34 @@ def calculate_compound_weight_matrix(
 
     """
 
-    t_start = time()
+    log_str = f"\nWeight Matrix from Points Info:\n"
+    log_str += f"Coordinate Dimension: {len(source_coordinate_vector_list)}\n"
+    for i, coordinate_vector in enumerate(source_coordinate_vector_list):
+        log_str += f"coordinate_vector[{i}].shape: {coordinate_vector.shape}\n"
+    logger.debug(log_str)
 
-    compound_weight_matrix = compound_weight(
-        distance_matrices(
+    t_distance_start = time()
+    distance_matrices = _distance_matrices(
         source_coordinate_vector_list,
         target_coordinate_vector_list,
         distance_measure,
         distance_args,
-    ), kernel_type, distance_ratio, bandwidth, neighbour_count
     )
+    t_distance_end = time()
 
-    logger.debug(f"Time taken to calculate compound weight matrix: {time() - t_start}")
+    t_kernel_start = time()
+    compound_weight_matrix = weight_matrix_from_distance(
+        distance_matrices, kernel_type, distance_ratio, bandwidth, neighbour_count
+    )
+    t_kernel_end = time()
+
+    logger.debug(f"Distance Time: {t_distance_end - t_distance_start}. Kernel Time: {t_kernel_end - t_kernel_start}")
 
     return compound_weight_matrix
 
 
-def compound_weight(
-        distance_matrices: Union[np.ndarray, da.array],
+def weight_matrix_from_distance(
+        distance_matrices,
         kernel_type: Union[str, list[str]],
         distance_ratio: Union[float, list[float], None] = None,
         bandwidth: Union[float, list[float], None] = None,
@@ -87,6 +98,18 @@ def compound_weight(
     Returns:
 
     """
+
+    log_str = f"\nWeight Matrix from Distance Info:\n"
+    log_str += f"Distance Dimension: {len(distance_matrices)}\n"
+    for i, distance_matrix in enumerate(distance_matrices):
+        log_str += f"distance_matrix[{i}].shape: {distance_matrix.shape}\n"
+    log_str += (
+        f"kernel_type: {kernel_type}\n"
+        f"distance_ratio: {distance_ratio}\n"
+        f"bandwidth: {bandwidth}\n"
+        f"neighbour_count: {neighbour_count}\n"
+    )
+    logger.debug(log_str)
 
     # Dimension of the vector list. (Len of the vector list)
     dimension = len(distance_matrices)
@@ -175,6 +198,12 @@ def compound_weight(
     row_sum[row_sum == 0] = 1
     # Notice the axis of division
     weight_matrix_norm = weight_matrix / np.expand_dims(row_sum, 1)
+
+    if isinstance(weight_matrix_norm, da.Array):
+        weight_matrix_norm = weight_matrix_norm.map_blocks(sparse.coo_matrix).compute()
+
+    # Stat the non-zero weight ratio
+    logger.debug(f"Non-zero weight ratio: {np.count_nonzero(weight_matrix_norm) / weight_matrix_norm.size}")
 
     return weight_matrix_norm
 

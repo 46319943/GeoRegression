@@ -1,17 +1,16 @@
 # TODO: https://jaykmody.com/blog/distance-matrices-with-numpy/
 # TODO: https://stackoverflow.com/questions/22720864/efficiently-calculating-a-euclidean-distance-matrix-using-numpy
 # TODO: Ref to https://github.com/talboger/fastdist and https://github.com/numba/numba-scipy/issues/38#issuecomment-623569703 to speed up by parallel computing
-import dask
+from pathlib import Path
+
 import dask.array as da
 import dask_distance
 import numpy as np
-from distributed import LocalCluster, Client
 from numba import njit
 from scipy.spatial.distance import pdist, cdist
-from os.path import join
-from pathlib import Path
 
-def distance_matrices(
+
+def _distance_matrices(
     source_coords: list[np.ndarray], target_coords=None, metrics='euclidean',
         use_dask=False, cache_sort=False, args=None, **kwargs
 ):
@@ -48,7 +47,7 @@ def distance_matrices(
         args = [kwargs] * dimension
 
     return [
-        distance_matrix(
+        _distance_matrix(
             source_coords[dim],
             target_coords[dim],
             metrics[dim],
@@ -60,7 +59,7 @@ def distance_matrices(
     ]
 
 
-def distance_matrix(source_coord, target_coord, metric, use_dask, cache_sort, **kwargs):
+def _distance_matrix(source_coord, target_coord, metric, use_dask, cache_sort, **kwargs):
     # Check equal dimension of source and target coordinates
     if target_coord is not None:
         if source_coord.shape[1] != target_coord.shape[1]:
