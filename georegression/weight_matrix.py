@@ -203,7 +203,11 @@ def weight_matrix_from_distance(
         weight_matrix_norm = weight_matrix_norm.map_blocks(sparse.coo_matrix).compute()
 
     # Stat the non-zero weight ratio
-    logger.debug(f"Non-zero weight ratio: {np.count_nonzero(weight_matrix_norm) / weight_matrix_norm.size}")
+    logger.debug(
+        f"Non-zero weight ratio: {np.count_nonzero(weight_matrix_norm) / weight_matrix_norm.size}\n"
+        f"Average neighbour count: {np.mean(np.count_nonzero(weight_matrix_norm, axis=1))}"
+    )
+
 
     return weight_matrix_norm
 

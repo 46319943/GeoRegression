@@ -39,6 +39,8 @@ class StackingWeightModel(WeightModel):
         n_patches=None,
         alpha=10.0,
         neighbour_leave_out_rate=None,
+        neighbour_leave_out_shrink_rate=None,
+        meta_fitting_shrink_rate=None,
         estimator_sample_rate=None,
         use_numba=False,
         *args,
@@ -63,15 +65,21 @@ class StackingWeightModel(WeightModel):
             *args,
             **kwargs
         )
-
-        self.base_estimator_list = None
-        self.stacking_predict_ = None
-        self.llocv_stacking_ = None
-        self.fitting_score_stacking_ = None
         self.alpha = alpha
         self.neighbour_leave_out_rate = neighbour_leave_out_rate
+        self.neighbour_leave_out_shrink_rate = neighbour_leave_out_shrink_rate
+        self.meta_fitting_shrink_rate = meta_fitting_shrink_rate
         self.estimator_sample_rate = estimator_sample_rate
         self.use_numba = use_numba
+
+        self.base_estimator_list = None
+        self.meta_estimator_list = None
+
+        self.stacking_predict_ = None
+        self.stacking_scores_ = None
+
+        self.llocv_stacking_ = None
+
 
     def fit(self, X, y, coordinate_vector_list=None, weight_matrix=None):
         """
@@ -91,6 +99,7 @@ class StackingWeightModel(WeightModel):
 
         cache_estimator = self.cache_estimator
         self.cache_estimator = True
+        self.N = X.shape[0]
 
         if weight_matrix is None:
             weight_matrix = weight_matrix_from_points(
@@ -125,7 +134,6 @@ class StackingWeightModel(WeightModel):
                 # Structure not change for sparse matrix. BUG HERE.
                 neighbour_leave_out = csr_array(neighbour_leave_out.T)
 
-
         # Do not change the original weight matrix to remain the original neighbour relationship.
         # Consider the phenomenon that weight_matrix_local[neighbour_leave_out.nonzero()] is not zero?
         # Because the neighbour relationship is not symmetric.
@@ -138,7 +146,19 @@ class StackingWeightModel(WeightModel):
             weight_matrix_local.eliminate_zeros()
 
         t_neighbour_process_end = time()
-        logger.debug(f"End of sampling leave out neighbour and setting weight matrix for base learner: {t_neighbour_process_end - t_neighbour_process_start}")
+
+        if isinstance(neighbour_leave_out, np.ndarray):
+            avg_neighbour_count = np.count_nonzero(weight_matrix_local) / self.N
+            avg_leave_out_count = np.count_nonzero(neighbour_leave_out) / self.N
+        elif isinstance(neighbour_leave_out, csr_array):
+            avg_neighbour_count = weight_matrix_local.count_nonzero() / self.N
+            avg_leave_out_count = neighbour_leave_out.count_nonzero() / self.N
+
+        logger.debug(
+            f"End of sampling leave out neighbour and setting weight matrix for base learner: {t_neighbour_process_end - t_neighbour_process_start}\n"
+            f"Average neighbour count for fitting base learner: {avg_neighbour_count}\n"
+            f"Average leave out count for fitting meta learner: {avg_leave_out_count}"
+        )
 
         t_base_fit_start = time()
         super().fit(
@@ -506,8 +526,8 @@ class StackingWeightModel(WeightModel):
             t_numba_end = time()
             logger.debug("Numba running time: %s \n", t_numba_end - t_numba_start)
 
+            self.stacking_scores_ = score_fit_list
             self.stacking_predict_ = np.array(y_predict_list)
-            self.fitting_score_stacking_ = score_fit_list
             self.llocv_stacking_ = r2_score(self.y_sample_, self.stacking_predict_)
 
             self.local_estimator_list = []

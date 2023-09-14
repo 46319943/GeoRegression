@@ -75,7 +75,42 @@ def _second_order_neighbour_dense(neighbour_matrix, neighbour_leave_out):
     return second_order_matrix
 
 
-def sample_neighbour(weight_matrix, sample_rate=0.5):
+def neighbour_shrink(weight_matrix, shrink_rate=0.5):
+    if isinstance(weight_matrix, np.ndarray):
+        return _neighbour_shrink(weight_matrix, shrink_rate)
+    elif isinstance(weight_matrix, csr_array):
+        weight_matrix.data = _neighbour_shrink_sparse(weight_matrix.data, weight_matrix.indptr, shrink_rate)
+        weight_matrix.eliminate_zeros()
+        return weight_matrix > 0
+
+@njit(parallel=True)
+def _neighbour_shrink(weight_matrix: np.ndarray, shrink_rate=0.5):
+    for i in prange(weight_matrix.shape[0]):
+        neighbour_indices = np.nonzero(weight_matrix[i])[0]
+        positive_value = weight_matrix[i]
+        positive_value = positive_value[neighbour_indices]
+        shrink_value = np.quantile(positive_value, shrink_rate)
+        positive_value[positive_value < shrink_value] = 0
+        # TODO: Rename j
+        for j in range(len(neighbour_indices)):
+            weight_matrix[i, neighbour_indices[j]] = positive_value[j]
+    return weight_matrix > 0
+
+@njit(parallel=True)
+def _neighbour_shrink_sparse(weight_matrix_data, weight_matrix_indptr, shrink_rate=0.5):
+    for i in prange(len(weight_matrix_indptr) - 1):
+        positive_value = weight_matrix_data[
+            weight_matrix_indptr[i] : weight_matrix_indptr[i + 1]
+        ]
+        shrink_value = np.quantile(positive_value, shrink_rate)
+        positive_value[positive_value < shrink_value] = 0
+        weight_matrix_data[
+            weight_matrix_indptr[i] : weight_matrix_indptr[i + 1]
+        ] = positive_value
+    return weight_matrix_data
+
+
+def sample_neighbour(weight_matrix, sample_rate=0.5, shrink_rate=0.5):
     """
     # TODO: More detailed description.
 
@@ -90,7 +125,11 @@ def sample_neighbour(weight_matrix, sample_rate=0.5):
 
     """
 
-    neighbour_matrix = weight_matrix > 0
+    # Do the shrink first.
+    if shrink_rate is not None:
+        neighbour_matrix = neighbour_shrink(weight_matrix, shrink_rate)
+    else:
+        neighbour_matrix = weight_matrix > 0
 
     # Do not sample itself.
     if isinstance(neighbour_matrix, np.ndarray):
