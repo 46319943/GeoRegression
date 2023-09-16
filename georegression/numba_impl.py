@@ -50,6 +50,10 @@ def r2_score(y_true, y_pred):
     y_mean = np.mean(y_true)
     total_sum_squares = np.sum((y_true - y_mean) ** 2)
     residual_sum_squares = np.sum((y_true - y_pred) ** 2)
+
+    if total_sum_squares == 0:
+        return 1
+
     return 1 - (residual_sum_squares / total_sum_squares)
 
 

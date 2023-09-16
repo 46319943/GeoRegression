@@ -11,7 +11,11 @@ from sklearn.metrics import r2_score
 from slab_utils.quick_logger import logger
 from joblib import Parallel, delayed
 
-from georegression.neighbour_utils import second_order_neighbour, sample_neighbour
+from georegression.neighbour_utils import (
+    second_order_neighbour,
+    sample_neighbour,
+    neighbour_shrink,
+)
 from georegression.numba_impl import ridge_cholesky
 from georegression.weight_matrix import weight_matrix_from_points
 from georegression.weight_model import WeightModel
@@ -119,7 +123,7 @@ class StackingWeightModel(WeightModel):
         neighbour_leave_out = None
         if self.neighbour_leave_out_rate is not None:
             neighbour_leave_out = sample_neighbour(
-                weight_matrix, self.neighbour_leave_out_rate
+                weight_matrix, self.neighbour_leave_out_rate, self.neighbour_leave_out_shrink_rate
             )
 
             if isinstance(neighbour_leave_out, csr_array):
@@ -157,7 +161,7 @@ class StackingWeightModel(WeightModel):
         logger.debug(
             f"End of sampling leave out neighbour and setting weight matrix for base learner: {t_neighbour_process_end - t_neighbour_process_start}\n"
             f"Average neighbour count for fitting base learner: {avg_neighbour_count}\n"
-            f"Average leave out count for fitting meta learner: {avg_leave_out_count}"
+            f"Average leave out count for fitting meta learner (n): {avg_leave_out_count}"
         )
 
         t_base_fit_start = time()
@@ -168,6 +172,17 @@ class StackingWeightModel(WeightModel):
             weight_matrix=weight_matrix_local,
         )
         t_base_fit_end = time()
+
+        # Just one line of addition here to implement meta_fitting_shrink_rate.
+        # TODO: BUG CHECK: the weight matrix is shrinked in place? Yes. Other operation should be checked!
+        neighbour_shrink(weight_matrix, self.meta_fitting_shrink_rate, True)
+        # weight_matrix = neighbour_shrink(weight_matrix, self.meta_fitting_shrink_rate, True)
+
+        if isinstance(weight_matrix, np.ndarray):
+            avg_neighbour_count = np.count_nonzero(weight_matrix) / self.N
+        elif isinstance(weight_matrix, csr_array):
+            avg_neighbour_count = weight_matrix.count_nonzero() / self.N
+        logger.debug(f"End of shrinking weight matrix for meta learner. Average neighbour count for fitting meta learner (m): {avg_neighbour_count}\n")
 
         neighbour_matrix = weight_matrix > 0
 
@@ -475,9 +490,11 @@ class StackingWeightModel(WeightModel):
 
                     # weight_fit = np.hstack((weight_fit[:index_i], weight_fit[index_i + 1:]))
 
+                    # TODO: If (m, n) m < n, then the matrix is not full rank, coef will be wrong.
                     coef, intercept = ridge_cholesky(X_fit_T.T, y_fit, alpha, weight_fit)
 
                     y_fit_predict = np.dot(X_fit_T.T, coef) + intercept
+                    # TODO: Even worse, if m = 1, error will occur, the code below will be skipped in numba mode. The root cause is total_sum_squares becomes zero.
                     score_fit = r2_numba(y_fit, y_fit_predict.flatten())
                     score_fit_list[i] = score_fit
 
@@ -575,6 +592,8 @@ class StackingWeightModel(WeightModel):
                     f"alpha: {self.alpha}\n" \
                     f"neighbour_leave_out_rate: {self.neighbour_leave_out_rate}\n" \
                     f"estimator_sample_rate: {self.estimator_sample_rate}\n" \
+                    f"neighbour_leave_out_shrink_rate: {self.neighbour_leave_out_shrink_rate}\n" \
+                    f"meta_fitting_shrink_rate: {self.meta_fitting_shrink_rate}\n" \
                     f"use_numba: {self.use_numba}\n"
 
         logger.debug(log_str)

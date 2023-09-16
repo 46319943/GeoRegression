@@ -75,13 +75,24 @@ def _second_order_neighbour_dense(neighbour_matrix, neighbour_leave_out):
     return second_order_matrix
 
 
-def neighbour_shrink(weight_matrix, shrink_rate=0.5):
+def neighbour_shrink(weight_matrix, shrink_rate=0.5, return_weight_matrix=False, inplace=True):
+    if not inplace:
+        weight_matrix = weight_matrix.copy()
+
     if isinstance(weight_matrix, np.ndarray):
-        return _neighbour_shrink(weight_matrix, shrink_rate)
+        weight_matrix = _neighbour_shrink(weight_matrix, shrink_rate)
+        if return_weight_matrix:
+            return weight_matrix
+        else:
+            return weight_matrix > 0
+
     elif isinstance(weight_matrix, csr_array):
         weight_matrix.data = _neighbour_shrink_sparse(weight_matrix.data, weight_matrix.indptr, shrink_rate)
         weight_matrix.eliminate_zeros()
-        return weight_matrix > 0
+        if return_weight_matrix:
+            return weight_matrix
+        else:
+            return weight_matrix > 0
 
 @njit(parallel=True)
 def _neighbour_shrink(weight_matrix: np.ndarray, shrink_rate=0.5):
@@ -94,7 +105,7 @@ def _neighbour_shrink(weight_matrix: np.ndarray, shrink_rate=0.5):
         # TODO: Rename j
         for j in range(len(neighbour_indices)):
             weight_matrix[i, neighbour_indices[j]] = positive_value[j]
-    return weight_matrix > 0
+    return weight_matrix
 
 @njit(parallel=True)
 def _neighbour_shrink_sparse(weight_matrix_data, weight_matrix_indptr, shrink_rate=0.5):
@@ -110,7 +121,7 @@ def _neighbour_shrink_sparse(weight_matrix_data, weight_matrix_indptr, shrink_ra
     return weight_matrix_data
 
 
-def sample_neighbour(weight_matrix, sample_rate=0.5, shrink_rate=0.5):
+def sample_neighbour(weight_matrix, sample_rate=0.5, shrink_rate=None):
     """
     # TODO: More detailed description.
 
@@ -127,7 +138,7 @@ def sample_neighbour(weight_matrix, sample_rate=0.5, shrink_rate=0.5):
 
     # Do the shrink first.
     if shrink_rate is not None:
-        neighbour_matrix = neighbour_shrink(weight_matrix, shrink_rate)
+        neighbour_matrix = neighbour_shrink(weight_matrix, shrink_rate, inplace=False)
     else:
         neighbour_matrix = weight_matrix > 0
 
