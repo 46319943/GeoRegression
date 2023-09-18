@@ -22,6 +22,32 @@ from georegression.weight_model import WeightModel
 from georegression.numba_impl import r2_score as r2_numba
 
 
+def batch_predict_wrapper(indices_batch, base_estimator_batch, second_neighbour_matrix, X):
+    print('start')
+    prediction_result_batch = list()
+    for estimator_index, i in enumerate(indices_batch):
+        if (
+            second_neighbour_matrix.indptr[i]
+            != second_neighbour_matrix.indptr[i + 1]
+        ):
+            prediction_result_batch.append(
+                base_estimator_batch[estimator_index].predict(
+                    X[
+                        second_neighbour_matrix.indices[
+                            second_neighbour_matrix.indptr[
+                                i
+                            ] : second_neighbour_matrix.indptr[i + 1]
+                        ]
+                    ]
+                )
+            )
+    # Sleep for 1 second to simulate the time consuming.
+    import time
+    # time.sleep(3)
+
+    print('end')
+    return prediction_result_batch
+
 class StackingWeightModel(WeightModel):
     def __init__(
         self,
@@ -175,7 +201,8 @@ class StackingWeightModel(WeightModel):
 
         # Just one line of addition here to implement meta_fitting_shrink_rate.
         # TODO: BUG CHECK: the weight matrix is shrinked in place? Yes. Other operation should be checked!
-        neighbour_shrink(weight_matrix, self.meta_fitting_shrink_rate, True)
+        if self.meta_fitting_shrink_rate is not None:
+            neighbour_shrink(weight_matrix, self.meta_fitting_shrink_rate, True)
         # weight_matrix = neighbour_shrink(weight_matrix, self.meta_fitting_shrink_rate, True)
 
         if isinstance(weight_matrix, np.ndarray):
@@ -223,6 +250,8 @@ class StackingWeightModel(WeightModel):
                     ].predict(X[second_neighbour_matrix[i]])
             X_meta_T = X_meta.transpose().copy(order="C")
         elif isinstance(second_neighbour_matrix, csr_array):
+
+            t1 = time()
             prediction_result = list()
             for i in range(self.N):
                 if (
@@ -240,31 +269,16 @@ class StackingWeightModel(WeightModel):
                             ]
                         )
                     )
+            t2 = time()
+            print(f'Time taken to predict in single thread: {t2 - t1}')
 
-            # TODO: Why it failed to accelerate?
-            # def batch_wrapper(indices_batch, base_estimator_batch, second_neighbour_matrix, X):
-            #     prediction_result_batch = list()
-            #     for estimator_index ,i in enumerate(indices_batch):
-            #         if (
-            #             second_neighbour_matrix.indptr[i]
-            #             != second_neighbour_matrix.indptr[i + 1]
-            #         ):
-            #             prediction_result_batch.append(
-            #                 base_estimator_batch[estimator_index].predict(
-            #                     X[
-            #                         second_neighbour_matrix.indices[
-            #                             second_neighbour_matrix.indptr[
-            #                                 i
-            #                             ] : second_neighbour_matrix.indptr[i + 1]
-            #                         ]
-            #                     ]
-            #                 )
-            #             )
-            #     return prediction_result_batch
-            #
-            # indices_list = np.array_split(range(self.N), int(self.n_patches / 4))
-            # parallel_batch_result = Parallel(int(self.n_patches / 4))(list(
-            #     delayed(batch_wrapper)(
+            # TODO: Why it failed to accelerate? Is because the inner def function? No!! It's because the heavy overhead in pickling/unpickling the data.
+            # TODO: This can only be resolved by using numba or cython or other language to fully utilize the multicore.
+            # TODO: Or it can be optimized by incorporating the prediction into the fitting process. But this will make the code more complex and require huge amount of work.
+            # t1 = time()
+            # indices_list = np.array_split(range(self.N), int(self.n_patches))
+            # parallel_batch_result = Parallel(int(self.n_patches), backend='multiprocessing')(list(
+            #     delayed(batch_predict_wrapper)(
             #         indices_batch,
             #         self.base_estimator_list[indices_batch[0]: indices_batch[-1] + 1],
             #         second_neighbour_matrix,
@@ -272,6 +286,9 @@ class StackingWeightModel(WeightModel):
             #     )
             #     for indices_batch in indices_list
             # ))
+            # t2 = time()
+            # print(f'Time taken to predict in parallel: {t2 - t1}')
+            #
             # prediction_result = [
             #     prediction_result
             #     for batch_result in parallel_batch_result

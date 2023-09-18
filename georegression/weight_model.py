@@ -249,7 +249,8 @@ class WeightModel(BaseEstimator, RegressorMixin):
         self.cache_estimator = cache_estimator
         self.n_jobs = n_jobs
         if n_jobs is None and n_patches is None:
-            n_patches = 6
+            import multiprocessing
+            n_patches = multiprocessing.cpu_count()
         self.n_patches = n_patches
 
         # Attributes of the model

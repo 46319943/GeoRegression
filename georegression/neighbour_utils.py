@@ -75,7 +75,7 @@ def _second_order_neighbour_dense(neighbour_matrix, neighbour_leave_out):
     return second_order_matrix
 
 
-def neighbour_shrink(weight_matrix, shrink_rate=0.5, return_weight_matrix=False, inplace=True):
+def neighbour_shrink(weight_matrix, shrink_rate, return_weight_matrix=False, inplace=True):
     if not inplace:
         weight_matrix = weight_matrix.copy()
 
@@ -121,7 +121,7 @@ def _neighbour_shrink_sparse(weight_matrix_data, weight_matrix_indptr, shrink_ra
     return weight_matrix_data
 
 
-def sample_neighbour(weight_matrix, sample_rate=0.5, shrink_rate=None):
+def sample_neighbour(weight_matrix, sample_rate, shrink_rate=None):
     """
     # TODO: More detailed description.
 
