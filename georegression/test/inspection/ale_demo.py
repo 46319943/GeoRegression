@@ -17,7 +17,10 @@ def PyALE():
 
 def alibiALE():
     from alibi.explainers import ALE
-    ale = ALE(predict_fn, feature_names=feature_names, target_names=target_names)
+    def predict_fn(X):
+        return estimator.predict(X)
+
+    ale = ALE(predict_fn)
     exp = ale.explain(X)
 
 def ALEPython():
@@ -25,3 +28,7 @@ def ALEPython():
     
     # Plots ALE of feature 'cont' with Monte-Carlo replicas (default : 50).
     ale_plot(model, X_train, "cont", monte_carlo=True)
+    
+
+if __name__ == '__main__':
+    alibiALE()
