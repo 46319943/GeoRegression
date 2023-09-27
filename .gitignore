@@ -3,6 +3,7 @@ Demo
 *.png
 *.jpg
 *.html
+*.pkl
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
