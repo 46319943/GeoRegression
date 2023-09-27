@@ -1,6 +1,8 @@
 from time import time
 
 import numpy as np
+import pandas as pd
+
 from joblib import Parallel, delayed
 from sklearn.base import BaseEstimator, clone, RegressorMixin
 from sklearn.inspection import permutation_importance, partial_dependence
@@ -9,6 +11,7 @@ from sklearn.metrics import r2_score
 from sklearn.utils.validation import check_X_y
 from slab_utils.quick_logger import logger
 from scipy.sparse import csr_array
+
 
 from georegression.weight_matrix import weight_matrix_from_points
 
@@ -655,6 +658,79 @@ class WeightModel(BaseEstimator, RegressorMixin):
         self.feature_ice_ = self.local_ice_.transpose((1, 0, 2))
 
         return self.local_ice_
+
+    def local_ALE(self, feature=0):
+        from georegression.local_ale import weighted_ale
+
+        ale_list = []
+
+        for local_index in range(len(self.local_estimator_list)):
+            estimator = self.local_estimator_list[local_index]
+            neighbour_mask = self.neighbour_matrix_[local_index]
+            neighbour_weight = self.weight_matrix_[local_index][neighbour_mask]
+            X_local = self.X[neighbour_mask]
+            ale_result = weighted_ale(X_local, feature, estimator.predict, neighbour_weight)
+            ale_list.append(ale_result)
+
+        return ale_list
+
+
+    def global_ALE(self, feature=0):
+        from alibi.explainers.ale import adaptive_grid
+
+        fvals, _ = adaptive_grid(self.X[:, feature])
+
+        # find which interval each observation falls into
+        indices = np.searchsorted(fvals, self.X[:, feature], side="left")
+        indices[indices == 0] = 1  # put the smallest data point in the first interval
+        interval_n = np.bincount(indices)  # number of points in each interval
+
+        # predictions for the upper and lower ranges of intervals
+        z_low = self.X.copy()
+        z_high = self.X.copy()
+        z_low[:, feature] = fvals[indices - 1]
+        z_high[:, feature] = fvals[indices]
+
+        p_low_list = []
+        p_high_list = []
+        for i in range(len(self.local_estimator_list)):
+            local_estimator = self.local_estimator_list[i]
+            p_low_local = local_estimator.predict(z_low[[i], :])
+            p_high_local = local_estimator.predict(z_high[[i], :])
+            p_low_list.append(p_low_local)
+            p_high_list.append(p_high_local)
+
+        p_low = np.array(p_low_list)
+        p_high = np.array(p_high_list)
+
+        # finite differences
+        p_deltas = p_high - p_low
+
+        # make a dataframe for averaging over intervals
+        concat = np.column_stack((p_deltas, indices))
+        df = pd.DataFrame(concat)
+
+        # weighted average for each interval
+        avg_p_deltas = df.groupby(1).apply(lambda x: np.average(x[0])).values
+
+        # accumulate over intervals
+        accum_p_deltas = np.cumsum(avg_p_deltas, axis=0)
+
+        # pre-pend 0 for the left-most point
+        zeros = np.zeros((1, 1))
+        accum_p_deltas = np.insert(accum_p_deltas, 0, zeros, axis=0)
+
+        # mean effect, R's `ALEPlot` and `iml` version (approximation per interval)
+        # Eq.16 from original paper "Visualizing the effects of predictor variables in black box supervised learning models"
+        ale0 = (
+                0.5 * (accum_p_deltas[:-1] + accum_p_deltas[1:]) * interval_n[1:]
+        ).sum(axis=0)
+        ale0 = ale0 / interval_n.sum()
+
+        # center
+        ale = accum_p_deltas - ale0
+
+        return fvals, ale, ale0
 
 
     def log_before_fitting(self, X, y, coordinate_vector_list=None, weight_matrix=None):
