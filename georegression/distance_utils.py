@@ -3,8 +3,7 @@
 # TODO: Ref to https://github.com/talboger/fastdist and https://github.com/numba/numba-scipy/issues/38#issuecomment-623569703 to speed up by parallel computing
 from pathlib import Path
 
-import dask.array as da
-import dask_distance
+
 import numpy as np
 from numba import njit
 from scipy.spatial.distance import pdist, cdist
@@ -68,6 +67,9 @@ def _distance_matrix(source_coord, target_coord, metric, use_dask, cache_sort, *
     dimension = source_coord.shape[1]
 
     if use_dask:
+        import dask.array as da
+        import dask_distance
+
         filepath = kwargs.get("filepath", "distance_matrix.zarr")
 
         if not filepath.endswith(".zarr"):
