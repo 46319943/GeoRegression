@@ -5,9 +5,10 @@ from time import time
 import numpy as np
 from numba import njit, prange
 from scipy.sparse import csr_array
-from sklearn.base import BaseEstimator
+from sklearn.base import BaseEstimator, clone
 from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score
+from sklearn.utils import check_X_y
 from slab_utils.quick_logger import logger
 from joblib import Parallel, delayed
 
@@ -22,31 +23,130 @@ from georegression.weight_model import WeightModel
 from georegression.numba_impl import r2_score as r2_numba
 
 
-def batch_predict_wrapper(indices_batch, base_estimator_batch, second_neighbour_matrix, X):
-    print('start')
-    prediction_result_batch = list()
-    for estimator_index, i in enumerate(indices_batch):
-        if (
-            second_neighbour_matrix.indptr[i]
-            != second_neighbour_matrix.indptr[i + 1]
-        ):
-            prediction_result_batch.append(
-                base_estimator_batch[estimator_index].predict(
-                    X[
-                        second_neighbour_matrix.indices[
-                            second_neighbour_matrix.indptr[
-                                i
-                            ] : second_neighbour_matrix.indptr[i + 1]
-                        ]
-                    ]
-                )
-            )
-    # Sleep for 1 second to simulate the time consuming.
-    import time
-    # time.sleep(3)
+def _fit_local_estimator(
+        local_estimator, X, y,
+        sample_weight,
+        X_second_neighbour,
+        local_x, return_estimator=False
+):
+    """
+    Wrapper for parallel fitting.
+    """
 
-    print('end')
-    return prediction_result_batch
+    # TODO: Add partial calculation for non-cache solution.
+
+    local_estimator.fit(X, y, sample_weight=sample_weight)
+    local_predict = local_estimator.predict(local_x.reshape(1, -1))
+    second_neighbour_predict = local_estimator.predict(X_second_neighbour)
+
+    if return_estimator:
+        return local_predict, second_neighbour_predict, local_estimator
+    else:
+        return local_predict, second_neighbour_predict, None
+
+def _fit(
+    X,
+    y,
+    estimator_list,
+    weight_matrix,
+    second_neighbour_matrix,
+    local_indices=None,
+    cache_estimator=False,
+    X_predict=None,
+    n_patches=None,
+):
+    t_start = time()
+
+    # Generate the mask of selection from weight matrix. Select non-zero weight to avoid zero weight input.
+    neighbour_matrix = weight_matrix != 0
+
+    # Use all data if sample indices not provided.
+    N = weight_matrix.shape[0]
+    if local_indices is None:
+        local_indices = range(N)
+
+    # Data used for local prediction. Different from X when source and target are not same for weight matrix.
+    if X_predict is None:
+        X_predict = X
+
+    # Parallel run the job. return [(prediction, estimator), (), ...]
+    if isinstance(weight_matrix, np.ndarray):
+        def batch_wrapper(local_indices):
+            local_prediction_list = []
+            second_neighbour_prediction_list = []
+            local_estimator_list = []
+            for i in local_indices:
+                estimator = estimator_list[i]
+                neighbour_mask = neighbour_matrix[i]
+                row_weight = weight_matrix[i]
+                x = X_predict[i]
+                local_predict, second_neighbour_predict, local_estimator = _fit_local_estimator(
+                    estimator, X[neighbour_mask], y[neighbour_mask], local_x=x,
+                    sample_weight=row_weight[neighbour_mask], X_second_neighbour=X[second_neighbour_matrix[i]],
+                    return_estimator=cache_estimator
+                )
+                local_prediction_list.append(local_predict)
+                second_neighbour_prediction_list.append(second_neighbour_predict)
+                local_estimator_list.append(local_estimator)
+
+            return local_prediction_list, second_neighbour_prediction_list, local_estimator_list
+
+    else:
+        def batch_wrapper(local_indices):
+            local_prediction_list = []
+            second_neighbour_prediction_list = []
+            local_estimator_list = []
+            for i in local_indices:
+                estimator = estimator_list[i]
+                neighbour_mask = neighbour_matrix.indices[
+                                 neighbour_matrix.indptr[i]:neighbour_matrix.indptr[i + 1]
+                                 ]
+                second_neighbour_mask = second_neighbour_matrix.indices[
+                                        second_neighbour_matrix.indptr[i]:second_neighbour_matrix.indptr[i + 1]
+                                ]
+                row_weight = weight_matrix.data[
+                             weight_matrix.indptr[i]:weight_matrix.indptr[i + 1]
+                             ]
+                x = X_predict[i]
+                local_predict, second_neighbour_predict, local_estimator = _fit_local_estimator(
+                    estimator, X[neighbour_mask], y[neighbour_mask], local_x=x,
+                    sample_weight=row_weight, X_second_neighbour=X[second_neighbour_mask],
+                    return_estimator=cache_estimator
+                )
+                local_prediction_list.append(local_predict)
+                second_neighbour_prediction_list.append(second_neighbour_predict)
+                local_estimator_list.append(local_estimator)
+
+            return local_prediction_list, second_neighbour_prediction_list, local_estimator_list
+
+    # Split the local indices.
+    local_indices_batch_list = np.array_split(local_indices, n_patches)
+    parallel_batch_result = Parallel(n_patches)(
+        delayed(batch_wrapper)(local_indices_batch) for local_indices_batch in local_indices_batch_list
+    )
+
+    local_predict = []
+    second_neighbour_predict = []
+    local_estimator_list = []
+    for local_prediction_batch, second_neighbour_prediction_batch, local_estimator_batch in parallel_batch_result:
+        local_predict.extend(local_prediction_batch)
+        second_neighbour_predict.extend(second_neighbour_prediction_batch)
+        local_estimator_list.extend(local_estimator_batch)
+
+
+    X_meta_T = csr_array(
+        (
+            np.hstack(second_neighbour_predict),
+            second_neighbour_matrix.indices,
+            second_neighbour_matrix.indptr,
+        )
+    )
+    X_meta = X_meta_T.getH().tocsr()
+
+    t_end = time()
+    logger.debug(f"Parallel fit time: {t_end - t_start}")
+
+    return local_predict, X_meta, X_meta_T, local_estimator_list
 
 class StackingWeightModel(WeightModel):
     def __init__(
@@ -127,6 +227,21 @@ class StackingWeightModel(WeightModel):
         """
         self.log_stacking_before_fitting()
 
+        X, y = check_X_y(X, y)
+        self.is_fitted_ = True
+        self.n_features_in_ = X.shape[1]
+        self.N = X.shape[0]
+
+        if coordinate_vector_list is None and weight_matrix is None:
+            raise Exception('At least one of coordinate_vector_list or weight_matrix should be provided')
+
+        # Cache data for local predict
+        if self.cache_data:
+            self.X = X
+            self.y = y
+            self.coordinate_vector_list = coordinate_vector_list
+            self.coordinate_vector_dimension_ = len(coordinate_vector_list)
+
         cache_estimator = self.cache_estimator
         self.cache_estimator = True
         self.N = X.shape[0]
@@ -175,6 +290,20 @@ class StackingWeightModel(WeightModel):
             # Or just use eliminate_zeros() to remove the zero elements.
             weight_matrix_local.eliminate_zeros()
 
+        if self.leave_local_out:
+            if isinstance(weight_matrix_local, np.ndarray):
+                np.fill_diagonal(weight_matrix_local, 0)
+            else:
+                # TODO: High cost for sparse matrix
+                weight_matrix_local.setdiag(0)
+                weight_matrix_local.eliminate_zeros()
+
+        if self.sample_local_rate is not None:
+            self.local_indices_ = np.sort(np.random.choice(self.N, int(self.sample_local_rate * self.N), replace=False))
+        else:
+            self.local_indices_ = range(self.N)
+        self.y_sample_ = y[self.local_indices_]
+
         t_neighbour_process_end = time()
 
         if isinstance(neighbour_leave_out, np.ndarray):
@@ -189,15 +318,6 @@ class StackingWeightModel(WeightModel):
             f"Average neighbour count for fitting base learner: {avg_neighbour_count}\n"
             f"Average leave out count for fitting meta learner (n): {avg_leave_out_count}"
         )
-
-        t_base_fit_start = time()
-        super().fit(
-            X,
-            y,
-            coordinate_vector_list=coordinate_vector_list,
-            weight_matrix=weight_matrix_local,
-        )
-        t_base_fit_end = time()
 
         # Just one line of addition here to implement meta_fitting_shrink_rate.
         # TODO: BUG CHECK: the weight matrix is shrinked in place? Yes. Other operation should be checked!
@@ -230,9 +350,7 @@ class StackingWeightModel(WeightModel):
             # TO FIX: Just use eliminate_zeros
             neighbour_matrix.eliminate_zeros()
 
-        self.cache_estimator = cache_estimator
-        self.base_estimator_list = self.local_estimator_list
-        self.local_estimator_list = None
+
 
         # Iterate the stacking estimator list to get the transformed X meta.
         # Cache all the data that will be used by neighbour estimators in one iteration by using second_neighbour_matrix.
@@ -240,69 +358,32 @@ class StackingWeightModel(WeightModel):
         # X_meta[i, j] means the prediction of estimator j on data i.
         t_predict_s = time()
 
-        # TODO: Parallelize this part.
-        if isinstance(second_neighbour_matrix, np.ndarray):
-            X_meta = np.zeros((self.N, self.N))
-            for i in range(self.N):
-                if second_neighbour_matrix[i].any():
-                    X_meta[second_neighbour_matrix[i], i] = self.base_estimator_list[
-                        i
-                    ].predict(X[second_neighbour_matrix[i]])
-            X_meta_T = X_meta.transpose().copy(order="C")
-        elif isinstance(second_neighbour_matrix, csr_array):
+        t_base_fit_start = time()
+        local_predict, X_meta, X_meta_T, local_estimator_list = _fit(
+            X,
+            y,
+            estimator_list=[clone(self.local_estimator) for _ in range(self.N)],
+            weight_matrix=weight_matrix_local,
+            second_neighbour_matrix=second_neighbour_matrix,
+            cache_estimator=True,
+            n_patches=self.n_patches,
+        )
+        t_base_fit_end = time()
 
-            t1 = time()
-            prediction_result = list()
-            for i in range(self.N):
-                if (
-                    second_neighbour_matrix.indptr[i]
-                    != second_neighbour_matrix.indptr[i + 1]
-                ):
-                    prediction_result.append(
-                        self.base_estimator_list[i].predict(
-                            X[
-                                second_neighbour_matrix.indices[
-                                    second_neighbour_matrix.indptr[
-                                        i
-                                    ] : second_neighbour_matrix.indptr[i + 1]
-                                ]
-                            ]
-                        )
-                    )
-            t2 = time()
-            print(f'Time taken to predict in single thread: {t2 - t1}')
+        self.local_predict_ = local_predict
+        self.local_estimator_list = local_estimator_list
 
-            # TODO: Why it failed to accelerate? Is because the inner def function? No!! It's because the heavy overhead in pickling/unpickling the data.
-            # TODO: This can only be resolved by using numba or cython or other language to fully utilize the multicore.
-            # TODO: Or it can be optimized by incorporating the prediction into the fitting process. But this will make the code more complex and require huge amount of work.
-            # t1 = time()
-            # indices_list = np.array_split(range(self.N), int(self.n_patches))
-            # parallel_batch_result = Parallel(int(self.n_patches), backend='multiprocessing')(list(
-            #     delayed(batch_predict_wrapper)(
-            #         indices_batch,
-            #         self.base_estimator_list[indices_batch[0]: indices_batch[-1] + 1],
-            #         second_neighbour_matrix,
-            #         X
-            #     )
-            #     for indices_batch in indices_list
-            # ))
-            # t2 = time()
-            # print(f'Time taken to predict in parallel: {t2 - t1}')
-            #
-            # prediction_result = [
-            #     prediction_result
-            #     for batch_result in parallel_batch_result
-            #     for prediction_result in batch_result
-            # ]
+        self.llocv_score_ = r2_score(self.y_sample_, self.local_predict_)
+        self.local_residual_ = self.y_sample_ - self.local_predict_
 
-            X_meta_T = csr_array(
-                (
-                    np.hstack(prediction_result),
-                    second_neighbour_matrix.indices,
-                    second_neighbour_matrix.indptr,
-                )
-            )
-            X_meta = X_meta_T.getH().tocsr()
+        self.cache_estimator = cache_estimator
+        self.base_estimator_list = self.local_estimator_list
+        self.local_estimator_list = None
+
+
+        # TODO: Why it failed to accelerate? Is because the inner def function? No!! It's because the heavy overhead in pickling/unpickling the data.
+        # TODO: This can only be resolved by using numba or cython or other language to fully utilize the multicore.
+        # TODO: Or it can be optimized by incorporating the prediction into the fitting process. But this will make the code more complex and require huge amount of work.
 
         t_predict_e = time()
         logger.debug(f"End of predicting X_meta: {t_predict_e - t_predict_s}")
@@ -562,7 +643,8 @@ class StackingWeightModel(WeightModel):
 
             self.stacking_scores_ = score_fit_list
             self.stacking_predict_ = np.array(y_predict_list)
-            self.llocv_stacking_ = r2_score(self.y_sample_, self.stacking_predict_)
+            # self.llocv_stacking_ = r2_score(self.y_sample_, self.stacking_predict_)
+            self.llocv_stacking_ = r2_score(y, self.stacking_predict_)
 
             self.local_estimator_list = []
             for i in range(self.N):

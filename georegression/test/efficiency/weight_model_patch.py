@@ -77,5 +77,5 @@ def test_performance_n_patches():
     # 0.7697055618854263
 
 if __name__ == "__main__":
-    # test_performance_n_jobs()
+    test_performance_n_jobs()
     test_performance_n_patches()

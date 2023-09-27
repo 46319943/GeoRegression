@@ -290,6 +290,7 @@ class WeightModel(BaseEstimator, RegressorMixin):
         self.args = args
         self.kwargs = kwargs
 
+
     def fit(self, X, y, coordinate_vector_list=None, weight_matrix=None):
         """
         Fix the model
