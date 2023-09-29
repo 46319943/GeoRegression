@@ -696,8 +696,9 @@ class WeightModel(BaseEstimator, RegressorMixin):
         p_high_list = []
         for i in range(len(self.local_estimator_list)):
             local_estimator = self.local_estimator_list[i]
-            p_low_local = local_estimator.predict(z_low[[i], :])
-            p_high_local = local_estimator.predict(z_high[[i], :])
+            p_local = local_estimator.predict(np.vstack((z_low[[i], :], z_high[[i], :])))
+            p_low_local = p_local[0]
+            p_high_local = p_local[1]
             p_low_list.append(p_low_local)
             p_high_list.append(p_high_local)
 

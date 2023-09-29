@@ -1,5 +1,5 @@
 import logging
-import os
+
 from slab_utils.quick_logger import logger
 
 # Change the format for file output
@@ -9,6 +9,9 @@ formatter4File = logging.Formatter(
     '%Y-%m-%d %H:%M:%S')
 fileHandler.setFormatter(formatter4File)
 
-
 # set LOKY_PICKLER=pickle using os
 # os.environ['LOKY_PICKLER'] = 'pickle'
+
+import matplotlib
+
+matplotlib.use('TKAgg')

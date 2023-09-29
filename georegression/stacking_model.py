@@ -55,6 +55,14 @@ def _fit(
     X_predict=None,
     n_patches=None,
 ):
+    """
+    Using joblib to parallelize the meta predicting process fails to accelerate, because the overhead of pickling/unpickling the model is too heavy.
+    This is a compromise solution to incorporate the second neighbour prediction procedure into the fitting process.
+    Actually, no so much work to implement this than I assumed before.
+    # TODO: To better solve the prorblem, using numba or cython or other language to fully utilize the multicore.
+
+    """
+
     t_start = time()
 
     # Generate the mask of selection from weight matrix. Select non-zero weight to avoid zero weight input.
@@ -350,8 +358,6 @@ class StackingWeightModel(WeightModel):
             # TO FIX: Just use eliminate_zeros
             neighbour_matrix.eliminate_zeros()
 
-
-
         # Iterate the stacking estimator list to get the transformed X meta.
         # Cache all the data that will be used by neighbour estimators in one iteration by using second_neighbour_matrix.
         # First dimension is data index, second dimension is estimator index.
@@ -379,11 +385,6 @@ class StackingWeightModel(WeightModel):
         self.cache_estimator = cache_estimator
         self.base_estimator_list = self.local_estimator_list
         self.local_estimator_list = None
-
-
-        # TODO: Why it failed to accelerate? Is because the inner def function? No!! It's because the heavy overhead in pickling/unpickling the data.
-        # TODO: This can only be resolved by using numba or cython or other language to fully utilize the multicore.
-        # TODO: Or it can be optimized by incorporating the prediction into the fitting process. But this will make the code more complex and require huge amount of work.
 
         t_predict_e = time()
         logger.debug(f"End of predicting X_meta: {t_predict_e - t_predict_s}")
@@ -643,8 +644,7 @@ class StackingWeightModel(WeightModel):
 
             self.stacking_scores_ = score_fit_list
             self.stacking_predict_ = np.array(y_predict_list)
-            # self.llocv_stacking_ = r2_score(self.y_sample_, self.stacking_predict_)
-            self.llocv_stacking_ = r2_score(y, self.stacking_predict_)
+            self.llocv_stacking_ = r2_score(self.y_sample_, self.stacking_predict_)
 
             self.local_estimator_list = []
             for i in range(self.N):
