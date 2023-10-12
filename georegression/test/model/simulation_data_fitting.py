@@ -53,21 +53,19 @@ def test_robust_under_various_data():
     X, y, points, coefficients = generate_sample(count=1000, random_seed=1)
     X_plus = np.concatenate([X, points], axis=1)
 
-    local_estimator = DecisionTreeRegressor(splitter="random", max_depth=3)
+    local_estimator = DecisionTreeRegressor(splitter="random", max_depth=1)
     distance_measure = "euclidean"
     kernel_type = "bisquare"
 
-    neighbour_count = 0.01
+    neighbour_count = 0.08
 
     model = StackingWeightModel(
         local_estimator,
         distance_measure,
         kernel_type,
         neighbour_count=neighbour_count,
-        neighbour_leave_out_rate=0.2,
+        neighbour_leave_out_rate=0.4,
     )
-
-    model.fit(X, y, [points])
     model.fit(X_plus, y, [points])
     print(model.llocv_score_ ,model.llocv_stacking_)
 
@@ -77,22 +75,8 @@ def test_robust_under_various_data():
         kernel_type,
         neighbour_count=neighbour_count,
     )
-
-    # model.fit(X, y, [points])
     model.fit(X_plus, y, [points])
     print(model.llocv_score_)
-
-    model = RandomForestRegressor(oob_score=True, n_estimators=5500, n_jobs=-1)
-    model.fit(X, y)
-    print(model.oob_score_)
-
-
-    model.fit(X_plus, y)
-    print(model.oob_score_)
-
-    model = LinearRegression()
-    model.fit(X_plus, y)
-    print(model.score(X_plus, y))
 
     model = WeightModel(
         LinearRegression(),
@@ -100,9 +84,16 @@ def test_robust_under_various_data():
         kernel_type,
         neighbour_count=neighbour_count,
     )
-
     model.fit(X_plus, y, [points])
     print(model.llocv_score_)
+
+    model = RandomForestRegressor(oob_score=True, n_estimators=5500, n_jobs=-1)
+    model.fit(X_plus, y)
+    print(model.oob_score_)
+
+    model = LinearRegression()
+    model.fit(X_plus, y)
+    print(model.score(X_plus, y))
 
     """
     count=500

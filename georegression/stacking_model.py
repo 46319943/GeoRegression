@@ -99,7 +99,7 @@ def _fit(
 
             return local_prediction_list, second_neighbour_prediction_list, local_estimator_list
 
-    else:
+    elif isinstance(weight_matrix, csr_array):
         def batch_wrapper(local_indices):
             local_prediction_list = []
             second_neighbour_prediction_list = []
@@ -141,15 +141,23 @@ def _fit(
         second_neighbour_predict.extend(second_neighbour_prediction_batch)
         local_estimator_list.extend(local_estimator_batch)
 
+    if isinstance(weight_matrix, np.ndarray):
+        X_meta_T = np.zeros((N, N))
+        for i in range(N):
+            X_meta_T[i, second_neighbour_matrix[i]] = second_neighbour_predict[i]
 
-    X_meta_T = csr_array(
-        (
-            np.hstack(second_neighbour_predict),
-            second_neighbour_matrix.indices,
-            second_neighbour_matrix.indptr,
+        X_meta = X_meta_T.T.copy()
+
+    elif isinstance(weight_matrix, csr_array):
+        X_meta_T = csr_array(
+            (
+                np.hstack(second_neighbour_predict),
+                second_neighbour_matrix.indices,
+                second_neighbour_matrix.indptr,
+            )
         )
-    )
-    X_meta = X_meta_T.getH().tocsr()
+        X_meta = X_meta_T.getH().tocsr()
+
 
     t_end = time()
     logger.debug(f"Parallel fit time: {t_end - t_start}")

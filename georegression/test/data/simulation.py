@@ -10,13 +10,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def radial_coefficient(origin):
+def radial_coefficient(origin, amplitude):
     """
     Generate a radial coefficient for a given origin.
     """
 
     def coefficient(point):
-        return np.linalg.norm(point - origin, axis=-1)
+        return amplitude * np.linalg.norm(point - origin, axis=-1)
 
     return coefficient
 
@@ -30,18 +30,18 @@ def direction_coefficient(direction):
     direction = direction / np.linalg.norm(direction)
 
     def coefficient(point):
-        return np.dot(point, direction)
+        return np.dot(point, direction) / np.linalg.norm(point, axis=-1)
 
     return coefficient
 
 
-def sine_coefficient(frequency, direction):
+def sine_coefficient(frequency, amplitude, direction):
     """
     Generate a sine coefficient for a given frequency.
     """
 
     def coefficient(point):
-        return np.sin(np.dot(point, direction) * frequency)
+        return amplitude * np.sin(np.dot(point, direction) * frequency)
 
     return coefficient
 
@@ -122,9 +122,9 @@ def sample_x(n, type='uniform'):
 def generate_sample(random_seed=None, count=100):
     np.random.seed(random_seed)
 
-    coef1 = radial_coefficient(np.array([0, 0]))
+    coef1 = radial_coefficient(np.array([0, 0]), 1 / np.sqrt(200))
     coef2 = direction_coefficient(np.array([1, 1]))
-    coef3 = sine_coefficient(1, np.array([-1, 1]))
+    coef3 = sine_coefficient(1, 1,np.array([-1, 1]))
 
     points = sample_points(count, 2, [(-10, 10), (-10, 10)])
 
@@ -132,13 +132,14 @@ def generate_sample(random_seed=None, count=100):
     x2 = sample_x(count)
 
     y = (
-            # polynomial_function(coef1, 2)(x1, points) + 3 +
+            polynomial_function(coef1, 2)(x1, points) +
+            polynomial_function(coef2, 2)(x1, points) +
             # relu_function(coef2)(x2, points) * x1 +
             polynomial_function(coef3, degree=2)(x1, points)
     )
 
     X = np.stack((x1, x2), axis=-1)
-    coefficients = np.stack((coef1(points), coef2(points)), axis=-1)
+    coefficients = np.stack((coef1(points), coef2(points), coef3(points)), axis=-1)
 
     return X, y, points, coefficients
 
@@ -158,15 +159,22 @@ def show_sample(X, y, points, coefficients):
         plt.subplot(dim_x, 1, i + 1)
         plt.scatter(points[:, 0], points[:, 1], c=X[:, i])
         plt.colorbar()
+        plt.xlabel("x")
+        plt.ylabel("y")
+        plt.title(f"The {i}-th feature of X")
     plt.show(block=False)
+    plt.suptitle("The value of X across the plane")
+
 
     # Plot y using scatter and boxplot
     plt.figure()
     plt.subplot(2, 1, 1)
     plt.scatter(points[:, 0], points[:, 1], c=y)
+    plt.title("The value of y across the plane")
 
     plt.subplot(2, 1, 2)
     plt.boxplot(y)
+    plt.title("The distribution of y")
 
     plt.colorbar()
     plt.show(block=False)
@@ -177,11 +185,13 @@ def show_sample(X, y, points, coefficients):
         plt.subplot(dim_coef, 1, i + 1)
         plt.scatter(points[:, 0], points[:, 1], c=coefficients[:, i])
         plt.colorbar()
+        plt.title(f"The {i}-th coefficient across the plane")
     plt.show(block=True)
+    plt.suptitle("The value of coefficients across the plane")
 
 
 def main():
-    X, y, points, coefficients = generate_sample()
+    X, y, points, coefficients = generate_sample(count=1000, random_seed=1)
 
     show_sample(X, y, points, coefficients)
 
