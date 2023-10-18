@@ -7,7 +7,7 @@ from georegression.stacking_model import StackingWeightModel
 from georegression.test.data.simulation import generate_sample
 from georegression.weight_model import WeightModel
 
-X, y, points, coefficients = generate_sample()
+X, y, points, _ = generate_sample()
 
 
 def test_nonlinear_spatiotemporal_really_work():
@@ -50,33 +50,33 @@ def test_robust_under_various_data():
     Returns:
 
     """
-    X, y, points, coefficients = generate_sample(count=1000, random_seed=1)
+    X, y, points, _ = generate_sample(count=1000, random_seed=1)
     X_plus = np.concatenate([X, points], axis=1)
 
     local_estimator = DecisionTreeRegressor(splitter="random", max_depth=1)
     distance_measure = "euclidean"
     kernel_type = "bisquare"
 
-    neighbour_count = 0.08
+    neighbour_count = 0.03
 
     model = StackingWeightModel(
         local_estimator,
         distance_measure,
         kernel_type,
         neighbour_count=neighbour_count,
-        neighbour_leave_out_rate=0.4,
+        neighbour_leave_out_rate=0.15,
     )
     model.fit(X_plus, y, [points])
-    print(model.llocv_score_ ,model.llocv_stacking_)
+    print('Stacking:', model.llocv_score_, model.llocv_stacking_)
 
     model = WeightModel(
-        RandomForestRegressor(),
+        RandomForestRegressor(n_estimators=200),
         distance_measure,
         kernel_type,
         neighbour_count=neighbour_count,
     )
     model.fit(X_plus, y, [points])
-    print(model.llocv_score_)
+    print('GRF:', model.llocv_score_)
 
     model = WeightModel(
         LinearRegression(),
@@ -85,15 +85,15 @@ def test_robust_under_various_data():
         neighbour_count=neighbour_count,
     )
     model.fit(X_plus, y, [points])
-    print(model.llocv_score_)
+    print('GWR:', model.llocv_score_)
 
     model = RandomForestRegressor(oob_score=True, n_estimators=5500, n_jobs=-1)
     model.fit(X_plus, y)
-    print(model.oob_score_)
+    print('RF:', model.oob_score_)
 
     model = LinearRegression()
     model.fit(X_plus, y)
-    print(model.score(X_plus, y))
+    print('LR:', model.score(X_plus, y))
 
     """
     count=500
@@ -114,6 +114,58 @@ def test_robust_under_various_data():
     """
 
 
+def test_without_X_plus():
+    X, y, points, _ = generate_sample(count=1000, random_seed=1)
+    X_plus = np.concatenate([X, points], axis=1)
+
+    local_estimator = DecisionTreeRegressor(splitter="random", max_depth=1)
+    distance_measure = "euclidean"
+    kernel_type = "bisquare"
+
+    neighbour_count = 0.03
+
+    model = StackingWeightModel(
+        local_estimator,
+        distance_measure,
+        kernel_type,
+        neighbour_count=neighbour_count,
+        neighbour_leave_out_rate=0.15,
+    )
+    model.fit(X, y, [points])
+    print('Stacking:', model.llocv_score_, model.llocv_stacking_)
+
+    model = WeightModel(
+        RandomForestRegressor(n_estimators=200),
+        distance_measure,
+        kernel_type,
+        neighbour_count=neighbour_count,
+    )
+    model.fit(X, y, [points])
+    print('GRF:', model.llocv_score_)
+
+    model = WeightModel(
+        LinearRegression(),
+        distance_measure,
+        kernel_type,
+        neighbour_count=neighbour_count,
+    )
+    model.fit(X, y, [points])
+    print('GWR:', model.llocv_score_)
+
+    model = RandomForestRegressor(oob_score=True, n_estimators=5500, n_jobs=-1)
+    model.fit(X_plus, y)
+    print('RF:', model.oob_score_)
+
+    model = LinearRegression()
+    model.fit(X_plus, y)
+    print('LR:', model.score(X_plus, y))
+
+def draw_graph():
+    pass
+
+
 if __name__ == "__main__":
     # test_nonlinear_spatiotemporal_really_work()
-    test_robust_under_various_data()
+    # test_robust_under_various_data()
+
+    test_without_X_plus()
