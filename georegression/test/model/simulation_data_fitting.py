@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
@@ -5,6 +6,7 @@ from sklearn.tree import DecisionTreeRegressor
 
 from georegression.stacking_model import StackingWeightModel
 from georegression.test.data.simulation import generate_sample
+from georegression.visualize.ale import plot_ale
 from georegression.weight_model import WeightModel
 
 X, y, points, _ = generate_sample()
@@ -115,7 +117,7 @@ def test_robust_under_various_data():
 
 
 def test_without_X_plus():
-    X, y, points, _ = generate_sample(count=1000, random_seed=1)
+    X, y, points, _ = generate_sample(count=5000, random_seed=1)
     X_plus = np.concatenate([X, points], axis=1)
 
     local_estimator = DecisionTreeRegressor(splitter="random", max_depth=1)
@@ -161,11 +163,42 @@ def test_without_X_plus():
     print('LR:', model.score(X_plus, y))
 
 def draw_graph():
-    pass
+    X, y, points, _ = generate_sample(count=3000, random_seed=1)
+    X_plus = np.concatenate([X, points], axis=1)
+
+    local_estimator = DecisionTreeRegressor(splitter="random", max_depth=1)
+    distance_measure = "euclidean"
+    kernel_type = "bisquare"
+
+    neighbour_count = 0.015
+
+    model = StackingWeightModel(
+        local_estimator,
+        distance_measure,
+        kernel_type,
+        neighbour_count=neighbour_count,
+        neighbour_leave_out_rate=0.15,
+        cache_data=True
+    )
+    model.fit(X, y, [points])
+    print('Stacking:', model.llocv_score_, model.llocv_stacking_)
+
+    fval, ale = model.global_ALE(0)
+    plot_ale(fval, ale, X[:, 0])
+
+    ale_list = model.local_ALE(0)
+    for local_index in range(model.N):
+        fval, ale = ale_list[local_index]
+        plot_ale(fval, ale, X[model.neighbour_matrix_[local_index], 0])
+
+        plt.figure()
+        plt.scatter(X[model.neighbour_matrix_[local_index], 0], y[model.neighbour_matrix_[local_index]])
+        plt.show()
 
 
 if __name__ == "__main__":
     # test_nonlinear_spatiotemporal_really_work()
     # test_robust_under_various_data()
+    # test_without_X_plus()
 
-    test_without_X_plus()
+    draw_graph()
