@@ -12,9 +12,14 @@ def plot_ale(fvals, ale, x):
     ax1.plot(fvals, ale, zorder=2)
     ax1.grid(True, which='both', linestyle='--', linewidth=0.5)
 
+    ax1.set_xlabel('Feature value')
+    ax1.set_ylabel('ALE')
+
     # Density distribution
     ax2 = ax1.twinx()
     ax2.hist(x, bins=10, density=False, alpha=0.3, color='gray', zorder=1)
     ax2.grid(False)
+
+    ax2.set_ylabel('Density')
 
     return fig

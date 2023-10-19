@@ -26,7 +26,7 @@ def test_ale():
     model.fit(X, y, [xy_vector, time])
     for i in range(5):
         feature_index = i
-        fval, ale, _ = model.global_ALE(feature_index)
+        fval, ale = model.global_ALE(feature_index)
         plot_ale(fval, ale, X[:, feature_index])
 
     print()

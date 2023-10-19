@@ -21,7 +21,7 @@ def test_ale():
     ale_list = model.local_ALE(0)
 
     for ale in ale_list:
-        fval, ale, _ = ale
+        fval, ale = ale
         plot_ale(fval, ale)
 
     print()

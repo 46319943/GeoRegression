@@ -1,6 +1,12 @@
+"""
+References: https://github.com/SeldonIO/alibi/blob/master/alibi/explainers/ale.py
+"""
+
 import numpy as np
 import pandas as pd
-from alibi.explainers.ale import adaptive_grid
+
+from georegression.ale_utils import adaptive_grid
+
 
 def weighted_ale(X, feature, predictor, weights=None):
     min_bin_points = 1
@@ -46,4 +52,4 @@ def weighted_ale(X, feature, predictor, weights=None):
     # center
     ale = accum_p_deltas - ale0
 
-    return fvals, ale, ale0
+    return fvals, ale

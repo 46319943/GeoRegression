@@ -14,6 +14,8 @@ from scipy.sparse import csr_array
 
 
 from georegression.weight_matrix import weight_matrix_from_points
+from georegression.local_ale import weighted_ale
+from georegression.ale_utils import adaptive_grid
 
 
 def fit_local_estimator(
@@ -324,6 +326,8 @@ class WeightModel(BaseEstimator, RegressorMixin):
         if weight_matrix is None:
             weight_matrix = weight_matrix_from_points(coordinate_vector_list, coordinate_vector_list, self.distance_measure, self.kernel_type, self.distance_ratio, self.bandwidth,
                                                       self.neighbour_count, self.distance_args)
+
+        # TODO: Tweak for inspection.
         self.weight_matrix_ = weight_matrix
         # Set the diagonal value of the weight matrix to exclude the local location to get CV score
         if self.leave_local_out:
@@ -661,8 +665,6 @@ class WeightModel(BaseEstimator, RegressorMixin):
         return self.local_ice_
 
     def local_ALE(self, feature=0):
-        from georegression.local_ale import weighted_ale
-
         ale_list = []
 
         for local_index in range(len(self.local_estimator_list)):
@@ -677,8 +679,6 @@ class WeightModel(BaseEstimator, RegressorMixin):
 
 
     def global_ALE(self, feature=0):
-        from alibi.explainers.ale import adaptive_grid
-
         fvals, _ = adaptive_grid(self.X[:, feature])
 
         # find which interval each observation falls into
@@ -732,7 +732,7 @@ class WeightModel(BaseEstimator, RegressorMixin):
         # center
         ale = accum_p_deltas - ale0
 
-        return fvals, ale, ale0
+        return fvals, ale
 
 
     def log_before_fitting(self, X, y, coordinate_vector_list=None, weight_matrix=None):

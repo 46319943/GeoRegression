@@ -274,6 +274,10 @@ class StackingWeightModel(WeightModel):
                 self.distance_args,
             )
 
+            # TODO: Tweak for inspection.
+            self.weight_matrix_ = weight_matrix
+            self.neighbour_matrix_ = weight_matrix > 0
+
         t_neighbour_process_start = time()
 
         # Do the leave out neighbour sampling.
@@ -714,5 +718,5 @@ class StackingEstimator(BaseEstimator):
 
     def predict(self, X):
         X_meta = [meta_estimator.predict(X) for meta_estimator in self.base_estimators]
-        X_meta = np.hstack(X_meta)
+        X_meta = np.column_stack(X_meta)
         return self.meta_estimator.predict(X_meta)
