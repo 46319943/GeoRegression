@@ -3,6 +3,7 @@ import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.tree import DecisionTreeRegressor
+from georegression.local_ale import weighted_ale
 
 from georegression.stacking_model import StackingWeightModel
 from georegression.test.data.simulation import generate_sample
@@ -183,17 +184,77 @@ def draw_graph():
     model.fit(X, y, [points])
     print('Stacking:', model.llocv_score_, model.llocv_stacking_)
 
-    fval, ale = model.global_ALE(0)
-    plot_ale(fval, ale, X[:, 0])
+    # Show the residual across the space.
+    residual = model.stacking_predict_ - model.y_sample_
+    residual = np.abs(residual)
+    plt.figure()
+    # Lower residual values has lower transparency
+    plt.scatter(points[:, 0], points[:, 1], c=residual, alpha=residual / residual.max())
+    plt.colorbar()
+    plt.show()
 
-    ale_list = model.local_ALE(0)
+    feature_index = 0
+    fval, ale = model.global_ALE(feature_index)
+    fig = plot_ale(fval, ale, X[:, feature_index])
+    fig.show()
+
+    # ale_list = model.local_ALE(feature_index)
+
     for local_index in range(model.N):
-        fval, ale = ale_list[local_index]
-        plot_ale(fval, ale, X[model.neighbour_matrix_[local_index], 0])
+        # fval, ale = ale_list[local_index]
+
+        estimator = model.local_estimator_list[local_index]
+        neighbour_mask = model.neighbour_matrix_[local_index]
+        neighbour_weight = model.weight_matrix_[local_index][neighbour_mask]
+        X_local = model.X[neighbour_mask]
+        ale_result = weighted_ale(X_local, feature_index, estimator.predict, neighbour_weight)
+
+        fval, ale = ale_result
+
+        x_neighbour = X[model.neighbour_matrix_[local_index], feature_index]
+        y_neighbour = y[model.neighbour_matrix_[local_index]]
+        weight_neighbour = model.weight_matrix_[local_index, model.neighbour_matrix_[local_index]]
+
+        fig = plot_ale(fval, ale, x_neighbour)
+
+        ax = fig.get_axes()[0]
+        scatter = ax.scatter(x_neighbour, y_neighbour, c=weight_neighbour)
+        ax.scatter(X[local_index, feature_index], y[local_index], c='red')
+        fig.colorbar(scatter, ax=ax, label='Weight') 
+
+        fig.show()
+
+        # Plot the neighbour, with the color as the weight
+        plt.figure()
+        plt.scatter(x_neighbour, y_neighbour, c=weight_neighbour)
+        plt.colorbar()
+        # Plot the local point
+        plt.scatter(X[local_index, feature_index], y[local_index], c='red')
+        plt.show()
+
+        y_predict = estimator.predict(X_local)
+        y_predict_local = y_predict[np.argmax(weight_neighbour)]
 
         plt.figure()
-        plt.scatter(X[model.neighbour_matrix_[local_index], 0], y[model.neighbour_matrix_[local_index]])
-        plt.show()
+        plt.scatter(x_neighbour, y_predict, c=weight_neighbour)
+        plt.colorbar()
+        # Get the prediction of the local point
+        plt.scatter(X[local_index, feature_index], y_predict_local, c='red')
+        plt.show(block=True)
+
+
+
+    importance_global = model.importance_score_global()
+    print(importance_global)
+
+    importance_local = model.importance_score_local()
+    print(importance_local)
+
+    # Plot the local importance
+    plt.figure()
+    plt.scatter(points[:, 0], points[:, 1], c=importance_local)
+    plt.colorbar()
+    plt.show()
 
 
 if __name__ == "__main__":

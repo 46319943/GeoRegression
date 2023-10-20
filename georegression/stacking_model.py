@@ -462,7 +462,7 @@ class StackingWeightModel(WeightModel):
                     indexing_time = indexing_time + t_indexing_end - t_indexing_start
                     stacking_time = stacking_time + t_stacking_end - t_stacking_start
 
-                self.stacking_predict_ = local_stacking_predict
+                self.stacking_predict_ = np.array(local_stacking_predict).reshape(-1)
                 self.llocv_stacking_ = r2_score(self.y_sample_, local_stacking_predict)
                 self.local_estimator_list = local_stacking_estimator_list
 
@@ -517,7 +517,7 @@ class StackingWeightModel(WeightModel):
                     indexing_time = indexing_time + t_indexing_end - t_indexing_start
                     stacking_time = stacking_time + t_stacking_end - t_stacking_start
 
-                self.stacking_predict_ = local_stacking_predict
+                self.stacking_predict_ = np.array(local_stacking_predict).reshape(-1)
                 self.llocv_stacking_ = r2_score(self.y_sample_, local_stacking_predict)
                 self.local_estimator_list = local_stacking_estimator_list
 
@@ -655,7 +655,7 @@ class StackingWeightModel(WeightModel):
             logger.debug("Numba running time: %s \n", t_numba_end - t_numba_start)
 
             self.stacking_scores_ = score_fit_list
-            self.stacking_predict_ = np.array(y_predict_list)
+            self.stacking_predict_ = np.array(y_predict_list).reshape(-1)
             self.llocv_stacking_ = r2_score(self.y_sample_, self.stacking_predict_)
 
             self.local_estimator_list = []
