@@ -13,6 +13,7 @@ from georegression.test.data.simulation_utils import gaussian_coefficient, radia
 def f_square(X, C, points):
     return (
             polynomial_function(C[0], 2)(X[:, 0], points) +
+            C[0](points) * 10 +
             0
     )
 
@@ -86,7 +87,7 @@ def generate_sample(random_seed=None, count=100, f=f, coef=coef):
     x2 = sample_x(count)
     coefficients = [coef]
 
-    X = np.stack((x1, x2), axis=-1)
+    X = np.stack((x1, ), axis=-1)
     y = f(X, coefficients, points)
 
     return X, y, points, coefficients

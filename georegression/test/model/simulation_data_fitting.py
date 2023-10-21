@@ -187,16 +187,16 @@ def draw_graph():
     # Show the residual across the space.
     residual = model.stacking_predict_ - model.y_sample_
     residual = np.abs(residual)
-    plt.figure()
+    fig, ax = plt.subplots()
     # Lower residual values has lower transparency
-    plt.scatter(points[:, 0], points[:, 1], c=residual, alpha=residual / residual.max())
-    plt.colorbar()
-    plt.show()
+    scatter = ax.scatter(points[:, 0], points[:, 1], c=residual, alpha=residual / residual.max())
+    fig.colorbar(scatter)
+    fig.savefig('residual.png')
 
     feature_index = 0
     fval, ale = model.global_ALE(feature_index)
     fig = plot_ale(fval, ale, X[:, feature_index])
-    fig.show()
+    fig.savefig('ale_global.png')
 
     # ale_list = model.local_ALE(feature_index)
 
@@ -216,32 +216,11 @@ def draw_graph():
         weight_neighbour = model.weight_matrix_[local_index, model.neighbour_matrix_[local_index]]
 
         fig = plot_ale(fval, ale, x_neighbour)
-
         ax = fig.get_axes()[0]
         scatter = ax.scatter(x_neighbour, y_neighbour, c=weight_neighbour)
         ax.scatter(X[local_index, feature_index], y[local_index], c='red')
         fig.colorbar(scatter, ax=ax, label='Weight') 
-
         fig.show()
-
-        # Plot the neighbour, with the color as the weight
-        plt.figure()
-        plt.scatter(x_neighbour, y_neighbour, c=weight_neighbour)
-        plt.colorbar()
-        # Plot the local point
-        plt.scatter(X[local_index, feature_index], y[local_index], c='red')
-        plt.show()
-
-        y_predict = estimator.predict(X_local)
-        y_predict_local = y_predict[np.argmax(weight_neighbour)]
-
-        plt.figure()
-        plt.scatter(x_neighbour, y_predict, c=weight_neighbour)
-        plt.colorbar()
-        # Get the prediction of the local point
-        plt.scatter(X[local_index, feature_index], y_predict_local, c='red')
-        plt.show(block=True)
-
 
 
     importance_global = model.importance_score_global()
