@@ -6,11 +6,11 @@ from sklearn.tree import DecisionTreeRegressor
 from georegression.local_ale import weighted_ale
 
 from georegression.stacking_model import StackingWeightModel
-from georegression.test.data.simulation import generate_sample
+from georegression.test.data.simulation import generate_sample, show_function_at_point
 from georegression.visualize.ale import plot_ale
 from georegression.weight_model import WeightModel
 
-X, y, points, _ = generate_sample()
+X, y, points, _, _ = generate_sample()
 
 
 def test_nonlinear_spatiotemporal_really_work():
@@ -53,7 +53,7 @@ def test_robust_under_various_data():
     Returns:
 
     """
-    X, y, points, _ = generate_sample(count=1000, random_seed=1)
+    X, y, points, _, _ = generate_sample(count=1000, random_seed=1)
     X_plus = np.concatenate([X, points], axis=1)
 
     local_estimator = DecisionTreeRegressor(splitter="random", max_depth=1)
@@ -118,7 +118,7 @@ def test_robust_under_various_data():
 
 
 def test_without_X_plus():
-    X, y, points, _ = generate_sample(count=5000, random_seed=1)
+    X, y, points, _, _ = generate_sample(count=5000, random_seed=1)
     X_plus = np.concatenate([X, points], axis=1)
 
     local_estimator = DecisionTreeRegressor(splitter="random", max_depth=1)
@@ -164,7 +164,7 @@ def test_without_X_plus():
     print('LR:', model.score(X_plus, y))
 
 def draw_graph():
-    X, y, points, _ = generate_sample(count=3000, random_seed=1)
+    X, y, points, f, coef = generate_sample(count=3000, random_seed=1)
     X_plus = np.concatenate([X, points], axis=1)
 
     local_estimator = DecisionTreeRegressor(splitter="random", max_depth=1)
@@ -179,10 +179,26 @@ def draw_graph():
         kernel_type,
         neighbour_count=neighbour_count,
         neighbour_leave_out_rate=0.15,
-        cache_data=True
+        cache_data=True,
+        cache_estimator=True,
     )
     model.fit(X, y, [points])
     print('Stacking:', model.llocv_score_, model.llocv_stacking_)
+
+    importance_global = model.importance_score_global()
+    print(importance_global)
+
+    importance_local = model.importance_score_local()
+    print(importance_local)
+
+    # Normalize the local importance to [0, 1]
+    importance_local = (importance_local - importance_local.min()) / (importance_local.max() - importance_local.min())
+
+    # Plot the local importance
+    fig, ax = plt.subplots()
+    scatter = ax.scatter(points[:, 0], points[:, 1], c=importance_local, cmap='viridis')
+    fig.colorbar(scatter)
+    plt.show()
 
     # Show the residual across the space.
     residual = model.stacking_predict_ - model.y_sample_
@@ -199,7 +215,6 @@ def draw_graph():
     fig.savefig('ale_global.png')
 
     # ale_list = model.local_ALE(feature_index)
-
     for local_index in range(model.N):
         # fval, ale = ale_list[local_index]
 
@@ -220,20 +235,16 @@ def draw_graph():
         scatter = ax.scatter(x_neighbour, y_neighbour, c=weight_neighbour)
         ax.scatter(X[local_index, feature_index], y[local_index], c='red')
         fig.colorbar(scatter, ax=ax, label='Weight') 
-        fig.show()
 
+        show_function_at_point(f, coef, points[local_index], ax=ax)
 
-    importance_global = model.importance_score_global()
-    print(importance_global)
+        # Add legend
+        handles, labels = ax.get_legend_handles_labels()
+        handles.append(scatter)
+        labels.append('Weight')
+        ax.legend(handles, labels)
 
-    importance_local = model.importance_score_local()
-    print(importance_local)
-
-    # Plot the local importance
-    plt.figure()
-    plt.scatter(points[:, 0], points[:, 1], c=importance_local)
-    plt.colorbar()
-    plt.show()
+        plt.show(block=True)
 
 
 if __name__ == "__main__":

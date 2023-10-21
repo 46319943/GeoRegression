@@ -90,7 +90,7 @@ def generate_sample(random_seed=None, count=100, f=f, coef=coef):
     X = np.stack((x1, ), axis=-1)
     y = f(X, coefficients, points)
 
-    return X, y, points, coefficients
+    return X, y, points, f, coefficients
 
 
 def show_sample(X, y, points, coefficients):
@@ -143,7 +143,7 @@ def show_sample(X, y, points, coefficients):
     plt.suptitle("The value of coefficients across the plane")
 
 
-def show_function_at_point(function, coef, point, X_bounds=(-10, 10)):
+def show_function_at_point(function, coef, point, X_bounds=(-10, 10), ax=None):
     """
     Show the function value at a given point.
     """
@@ -157,17 +157,20 @@ def show_function_at_point(function, coef, point, X_bounds=(-10, 10)):
     # Calculate the function value
     y = function(X, coef, point)
 
+    if ax is None:
+        fig, ax = plt.subplots()
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
+        ax.set_title(f"The function value at point {point}")
+        
     # Plot the function
-    plt.figure()
-    plt.plot(x1, y)
-    plt.xlabel("x")
-    plt.ylabel("y")
-    plt.title(f"The function value at point {point}")
-    plt.show(block=False)
+    ax.plot(x1, y, label="Function value")
+    
+    return ax
 
 
 def main():
-    X, y, points, coefficients = generate_sample(count=5000, random_seed=1)
+    X, y, points, f, coefficients = generate_sample(count=5000, random_seed=1)
 
     show_sample(X, y, points, coefficients)
     show_function_at_point(f, coefficients, points[0])

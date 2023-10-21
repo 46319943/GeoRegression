@@ -720,3 +720,16 @@ class StackingEstimator(BaseEstimator):
         X_meta = [meta_estimator.predict(X) for meta_estimator in self.base_estimators]
         X_meta = np.column_stack(X_meta)
         return self.meta_estimator.predict(X_meta)
+    
+    def score(self, X, y, sample_weight=None):
+        """
+        To make compatible with permutation_importance.
+        """
+        y_pred = self.predict(X)
+        return r2_score(y, y_pred, sample_weight=sample_weight)
+    
+    def fit(X, y):
+        """
+        Used to avoid the exception in check_scoring of permutation_importance.
+        """
+        pass
