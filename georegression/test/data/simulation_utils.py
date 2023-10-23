@@ -1,13 +1,18 @@
 import numpy as np
+from scipy.stats import multivariate_normal
 
-
-def gaussian_coefficient(mean, variance, amplitude=1):
+def gaussian_coefficient(mean, cov, amplitude=1):
     """
     Generate a gaussian coefficient for a given mean and variance.
     """
 
+    if isinstance(cov, list):
+        cov = np.array(cov)
+
+    normalize_factor = multivariate_normal.pdf(mean, mean, cov)
+
     def coefficient(point):
-        return np.exp(-np.linalg.norm(point - mean, axis=-1) ** 2 / (2 * variance)) * amplitude
+        return multivariate_normal.pdf(point, mean, cov) * amplitude / normalize_factor
 
     return coefficient
 

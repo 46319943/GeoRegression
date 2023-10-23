@@ -10,7 +10,8 @@ from georegression.test.data.simulation import generate_sample, show_function_at
 from georegression.visualize.ale import plot_ale
 from georegression.weight_model import WeightModel
 
-X, y, points, _, _ = generate_sample()
+X, y, points, _, _ = generate_sample(count=5000, random_seed=1)
+X_plus = np.concatenate([X, points], axis=1)
 
 
 def test_nonlinear_spatiotemporal_really_work():
@@ -118,27 +119,26 @@ def test_robust_under_various_data():
 
 
 def test_without_X_plus():
-    X, y, points, _, _ = generate_sample(count=5000, random_seed=1)
-    X_plus = np.concatenate([X, points], axis=1)
-
     local_estimator = DecisionTreeRegressor(splitter="random", max_depth=1)
     distance_measure = "euclidean"
     kernel_type = "bisquare"
 
-    neighbour_count = 0.03
+    neighbour_count = 0.004
 
     model = StackingWeightModel(
         local_estimator,
         distance_measure,
         kernel_type,
         neighbour_count=neighbour_count,
-        neighbour_leave_out_rate=0.15,
+        neighbour_leave_out_rate=0.25,
     )
     model.fit(X, y, [points])
     print('Stacking:', model.llocv_score_, model.llocv_stacking_)
 
+    neighbour_count = 0.003
+
     model = WeightModel(
-        RandomForestRegressor(n_estimators=200),
+        RandomForestRegressor(n_estimators=50),
         distance_measure,
         kernel_type,
         neighbour_count=neighbour_count,
@@ -155,7 +155,7 @@ def test_without_X_plus():
     model.fit(X, y, [points])
     print('GWR:', model.llocv_score_)
 
-    model = RandomForestRegressor(oob_score=True, n_estimators=5500, n_jobs=-1)
+    model = RandomForestRegressor(oob_score=True, n_estimators=3000, n_jobs=-1)
     model.fit(X_plus, y)
     print('RF:', model.oob_score_)
 
@@ -163,56 +163,64 @@ def test_without_X_plus():
     model.fit(X_plus, y)
     print('LR:', model.score(X_plus, y))
 
+
+def test_GRF():
+    distance_measure = "euclidean"
+    kernel_type = "bisquare"
+
+    for neighbour_count in [0.001, 0.002, 0.003, 0.004, 0.005, 0.008, 0.010, 0.012, 0.015, 0.018]:    
+        model = WeightModel(
+            RandomForestRegressor(n_estimators=50),
+            distance_measure,
+            kernel_type,
+            neighbour_count=neighbour_count,
+        )
+        model.fit(X, y, [points])
+        print('GRF:', model.llocv_score_, neighbour_count)
+
+
+
+def test_stacking():
+    distance_measure = "euclidean"
+    kernel_type = "bisquare"
+    local_estimator = DecisionTreeRegressor(splitter="random", max_depth=1)
+
+    for neighbour_count in [0.008, 0.01, 0.012]:
+        for leave_out_rate in [0.15, 0.25]:
+            model = StackingWeightModel(
+                local_estimator,
+                distance_measure,
+                kernel_type,
+                neighbour_count=neighbour_count,
+                neighbour_leave_out_rate=leave_out_rate,
+            )
+            model.fit(X, y, [points])
+            print('Stacking:', model.llocv_score_, model.llocv_stacking_, neighbour_count, leave_out_rate)
+
+    # Stacking: 0.5335063048239541 0.6881019591277441 0.01 0.25
+
 def draw_graph():
-    X, y, points, f, coef = generate_sample(count=3000, random_seed=1)
+    X, y, points, f, coef = generate_sample(count=5000, random_seed=1)
     X_plus = np.concatenate([X, points], axis=1)
 
     local_estimator = DecisionTreeRegressor(splitter="random", max_depth=1)
     distance_measure = "euclidean"
     kernel_type = "bisquare"
 
-    neighbour_count = 0.015
+    neighbour_count = 0.01
 
     model = StackingWeightModel(
         local_estimator,
         distance_measure,
         kernel_type,
         neighbour_count=neighbour_count,
-        neighbour_leave_out_rate=0.15,
+        neighbour_leave_out_rate=0.25,
         cache_data=True,
         cache_estimator=True,
     )
     model.fit(X, y, [points])
     print('Stacking:', model.llocv_score_, model.llocv_stacking_)
-
-    importance_global = model.importance_score_global()
-    print(importance_global)
-
-    importance_local = model.importance_score_local()
-    print(importance_local)
-
-    # Normalize the local importance to [0, 1]
-    importance_local = (importance_local - importance_local.min()) / (importance_local.max() - importance_local.min())
-
-    # Plot the local importance
-    fig, ax = plt.subplots()
-    scatter = ax.scatter(points[:, 0], points[:, 1], c=importance_local, cmap='viridis')
-    fig.colorbar(scatter)
-    plt.show()
-
-    # Show the residual across the space.
-    residual = model.stacking_predict_ - model.y_sample_
-    residual = np.abs(residual)
-    fig, ax = plt.subplots()
-    # Lower residual values has lower transparency
-    scatter = ax.scatter(points[:, 0], points[:, 1], c=residual, alpha=residual / residual.max())
-    fig.colorbar(scatter)
-    fig.savefig('residual.png')
-
     feature_index = 0
-    fval, ale = model.global_ALE(feature_index)
-    fig = plot_ale(fval, ale, X[:, feature_index])
-    fig.savefig('ale_global.png')
 
     # ale_list = model.local_ALE(feature_index)
     for local_index in range(model.N):
@@ -238,6 +246,11 @@ def draw_graph():
 
         show_function_at_point(f, coef, points[local_index], ax=ax)
 
+        # Add non-weighted ALE plot
+        ale_result = weighted_ale(X_local, feature_index, estimator.predict, np.ones(X_local.shape[0]))
+        fval, ale = ale_result
+        ax.plot(fval, ale, label="Non-weighted ALE")
+
         # Add legend
         handles, labels = ax.get_legend_handles_labels()
         handles.append(scatter)
@@ -246,10 +259,40 @@ def draw_graph():
 
         plt.show(block=True)
 
+    importance_global = model.importance_score_global()
+    print(importance_global)
+
+    importance_local = model.importance_score_local()
+    print(importance_local)
+
+    # Normalize the local importance to [0, 1]
+    importance_local = (importance_local - importance_local.min()) / (importance_local.max() - importance_local.min())
+
+    # Plot the local importance
+    fig, ax = plt.subplots()
+    scatter = ax.scatter(points[:, 0], points[:, 1], c=importance_local[:, 0], cmap='viridis')
+    fig.colorbar(scatter)
+    plt.show()
+
+    # Show the residual across the space.
+    residual = model.stacking_predict_ - model.y_sample_
+    residual = np.abs(residual)
+    fig, ax = plt.subplots()
+    # Lower residual values has lower transparency
+    scatter = ax.scatter(points[:, 0], points[:, 1], c=residual, alpha=residual / residual.max())
+    fig.colorbar(scatter)
+    fig.savefig('residual.png')
+
+    fval, ale = model.global_ALE(feature_index)
+    fig = plot_ale(fval, ale, X[:, feature_index])
+    fig.savefig('ale_global.png')
+
 
 if __name__ == "__main__":
     # test_nonlinear_spatiotemporal_really_work()
     # test_robust_under_various_data()
     # test_without_X_plus()
+    # test_GRF()
+    # test_stacking()
 
     draw_graph()
