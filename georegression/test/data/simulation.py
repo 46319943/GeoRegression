@@ -6,7 +6,7 @@ https://doi.org/10.1080/24694452.2023.2187756
 import matplotlib.pyplot as plt
 import numpy as np
 
-from georegression.test.data.simulation_utils import gaussian_coefficient, radial_coefficient, directional_coefficient, sine_coefficient, coefficient_wrapper, polynomial_function, sigmoid_function, \
+from georegression.test.data.simulation_utils import gaussian_coefficient, interaction_function, radial_coefficient, directional_coefficient, sine_coefficient, coefficient_wrapper, polynomial_function, sigmoid_function, \
     sample_points, sample_x
 
 
@@ -30,7 +30,13 @@ def f_sigmoid(X, C, points):
             0
     )
 
-f = f_square_2
+def  f_interact(X, C, points):
+    return (
+            interaction_function(C[0])(X[:, 0], X[:, 1], points) +
+            0
+    )
+
+f = f_interact
 
 
 def coef_f():
@@ -131,16 +137,17 @@ def coef_f5():
     return coef_sum
 
 
-coef_func = coef_f5
+coef_func = coef_f2
 
 
-def generate_sample(random_seed=None, count=100, f=f, function_coef_num=2, coef_func=coef_func):
+def generate_sample(random_seed=None, count=100, f=f, function_coef_num=1, coef_func=coef_func):
     np.random.seed(random_seed)
 
     points = sample_points(count)
 
     x1 = sample_x(count)
-    x2 = sample_x(count)
+    # x2 = sample_x(count)
+    x2 = sample_x(count, bounds=(0, 1))
 
     coefficients = [coef_func() for _ in range(function_coef_num)]
 

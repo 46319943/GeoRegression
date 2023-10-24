@@ -123,7 +123,7 @@ def test_without_X_plus():
     distance_measure = "euclidean"
     kernel_type = "bisquare"
 
-    neighbour_count = 0.004
+    neighbour_count = 0.05
 
     model = StackingWeightModel(
         local_estimator,
@@ -135,7 +135,7 @@ def test_without_X_plus():
     model.fit(X, y, [points])
     print('Stacking:', model.llocv_score_, model.llocv_stacking_)
 
-    neighbour_count = 0.003
+    neighbour_count = 0.03
 
     model = WeightModel(
         RandomForestRegressor(n_estimators=50),
@@ -168,7 +168,7 @@ def test_GRF():
     distance_measure = "euclidean"
     kernel_type = "bisquare"
 
-    for neighbour_count in [0.001, 0.002, 0.003, 0.004, 0.005, 0.008, 0.010, 0.012, 0.015, 0.018]:    
+    for neighbour_count in [0.01, 0.02, 0.05]:    
         model = WeightModel(
             RandomForestRegressor(n_estimators=50),
             distance_measure,
@@ -203,11 +203,12 @@ def draw_graph():
     X, y, points, f, coef = generate_sample(count=5000, random_seed=1)
     X_plus = np.concatenate([X, points], axis=1)
 
-    local_estimator = DecisionTreeRegressor(splitter="random", max_depth=1)
+    # local_estimator = DecisionTreeRegressor(splitter="random", max_depth=1)
+    local_estimator = DecisionTreeRegressor(splitter="random", max_depth=2)
     distance_measure = "euclidean"
     kernel_type = "bisquare"
 
-    neighbour_count = 0.01
+    neighbour_count = 0.05
 
     model = StackingWeightModel(
         local_estimator,
@@ -244,10 +245,18 @@ def draw_graph():
         ax.scatter(X[local_index, feature_index], y[local_index], c='red')
         fig.colorbar(scatter, ax=ax, label='Weight') 
 
-        show_function_at_point(f, coef, points[local_index], ax=ax)
+        # show_function_at_point(f, coef, points[local_index], ax=ax)
+
+        x_gird = np.linspace(-10, 10, 1000)
+        x1 = X[local_index, 1]
+        x1 = np.tile(x1, 1000)
+        X_grid = np.stack([x_gird, x1], axis=-1)
+        y_grid = f(X_grid, coef, points[local_index])
+        ax.plot(x_gird, y_grid, label="Function value")
 
         # Add non-weighted ALE plot
-        ale_result = weighted_ale(X_local, feature_index, estimator.predict, np.ones(X_local.shape[0]))
+        # ale_result = weighted_ale(X_local, feature_index, estimator.predict, np.ones(X_local.shape[0]))
+        ale_result = weighted_ale(X, feature_index, estimator.predict, np.ones(X.shape[0]))
         fval, ale = ale_result
         ax.plot(fval, ale, label="Non-weighted ALE")
 
