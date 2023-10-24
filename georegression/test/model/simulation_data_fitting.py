@@ -202,25 +202,35 @@ def test_stacking():
 def draw_graph():
     X, y, points, f, coef = generate_sample(count=5000, random_seed=1)
     X_plus = np.concatenate([X, points], axis=1)
-
-    # local_estimator = DecisionTreeRegressor(splitter="random", max_depth=1)
-    local_estimator = DecisionTreeRegressor(splitter="random", max_depth=2)
     distance_measure = "euclidean"
     kernel_type = "bisquare"
-
     neighbour_count = 0.05
 
-    model = StackingWeightModel(
-        local_estimator,
+    # local_estimator = DecisionTreeRegressor(splitter="random", max_depth=1)
+    # local_estimator = DecisionTreeRegressor(splitter="random", max_depth=2)
+    # model = StackingWeightModel(
+    #     local_estimator,
+    #     distance_measure,
+    #     kernel_type,
+    #     neighbour_count=neighbour_count,
+    #     neighbour_leave_out_rate=0.25,
+    #     cache_data=True,
+    #     cache_estimator=True,
+    # )
+    # model.fit(X, y, [points])
+    # print('Stacking:', model.llocv_score_, model.llocv_stacking_)
+
+    model = WeightModel(
+        RandomForestRegressor(n_estimators=50),
         distance_measure,
         kernel_type,
         neighbour_count=neighbour_count,
-        neighbour_leave_out_rate=0.25,
         cache_data=True,
         cache_estimator=True,
     )
     model.fit(X, y, [points])
-    print('Stacking:', model.llocv_score_, model.llocv_stacking_)
+    print('GRF:', model.llocv_score_)
+
     feature_index = 0
 
     # ale_list = model.local_ALE(feature_index)
@@ -247,7 +257,7 @@ def draw_graph():
 
         # show_function_at_point(f, coef, points[local_index], ax=ax)
 
-        x_gird = np.linspace(-10, 10, 1000)
+        x_gird = np.linspace(np.min(X[:, 0]), np.max(X[:, 0]), 1000)
         x1 = X[local_index, 1]
         x1 = np.tile(x1, 1000)
         X_grid = np.stack([x_gird, x1], axis=-1)

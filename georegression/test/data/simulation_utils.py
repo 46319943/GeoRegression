@@ -148,3 +148,30 @@ def sample_x(n, type='uniform', bounds=(-10, 10), mean=0, variance=1, scale=1):
         return np.random.normal(mean, variance, n)
     elif type == 'exponential':
         return np.random.exponential(scale, n)
+
+
+def sample_x_across_location(n, points, type='uniform', bound_coef=None, bounds=(-10, 10), mean=0, variance=1, scale=1):
+    """
+    Sample n x values from a specified distribution across a given location.
+    """
+
+    if callable(bound_coef):
+            x = np.zeros((n, ))
+            for i in range(points.shape[0]):
+                base_bound = bound_coef(points[i])
+                x[i] = np.random.uniform(base_bound + bounds[0], base_bound + bounds[1], 1)
+
+            return x
+        
+
+    # if isinstance(bounds[0], function):
+    #     low_bound_coef = bounds[0]
+    # if isinstance(bounds[1], function):
+    #     high_bound_coef = bounds[1]
+
+    # x = np.zeros((n, ))
+
+    # for i in range(points.shape[1]):
+    #     x[i] = np.random.uniform(low_bound_coef(points[i]), high_bound_coef(points[i]), 1)
+
+    # return x

@@ -3,10 +3,11 @@ Generate simulated data for testing purposes.
 A Bayesian Implementation of the Multiscale Geographically Weighted Regression Model with INLA
 https://doi.org/10.1080/24694452.2023.2187756
 """
+from functools import partial
 import matplotlib.pyplot as plt
 import numpy as np
 
-from georegression.test.data.simulation_utils import gaussian_coefficient, interaction_function, radial_coefficient, directional_coefficient, sine_coefficient, coefficient_wrapper, polynomial_function, sigmoid_function, \
+from georegression.test.data.simulation_utils import gaussian_coefficient, interaction_function, radial_coefficient, directional_coefficient, sample_x_across_location, sine_coefficient, coefficient_wrapper, polynomial_function, sigmoid_function, \
     sample_points, sample_x
 
 
@@ -145,9 +146,11 @@ def generate_sample(random_seed=None, count=100, f=f, function_coef_num=1, coef_
 
     points = sample_points(count)
 
-    x1 = sample_x(count)
+    # x1 = sample_x(count)
+    x1 = sample_x_across_location(count, points, bound_coef=coef_func(), bounds=(-1, 1))
     # x2 = sample_x(count)
-    x2 = sample_x(count, bounds=(0, 1))
+    # x2 = sample_x(count, bounds=(0, 1))
+    x2 = sample_x_across_location(count, points, bound_coef=coefficient_wrapper(partial(np.multiply, 3) ,coef_func()), bounds=(-2, 2))
 
     coefficients = [coef_func() for _ in range(function_coef_num)]
 
