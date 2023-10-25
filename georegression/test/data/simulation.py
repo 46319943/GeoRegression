@@ -139,7 +139,7 @@ def coef_f5():
 
 
 coef_func = coef_f2
-
+x2_coef = coefficient_wrapper(partial(np.multiply, 3) ,coef_func())
 
 def generate_sample(random_seed=None, count=100, f=f, function_coef_num=1, coef_func=coef_func):
     np.random.seed(random_seed)
@@ -150,7 +150,8 @@ def generate_sample(random_seed=None, count=100, f=f, function_coef_num=1, coef_
     x1 = sample_x_across_location(count, points, bound_coef=coef_func(), bounds=(-1, 1))
     # x2 = sample_x(count)
     # x2 = sample_x(count, bounds=(0, 1))
-    x2 = sample_x_across_location(count, points, bound_coef=coefficient_wrapper(partial(np.multiply, 3) ,coef_func()), bounds=(-2, 2))
+    x2_coef = coefficient_wrapper(partial(np.multiply, 3) ,coef_func())
+    x2 = sample_x_across_location(count, points, bound_coef=x2_coef, bounds=(-2, 2))
 
     coefficients = [coef_func() for _ in range(function_coef_num)]
 

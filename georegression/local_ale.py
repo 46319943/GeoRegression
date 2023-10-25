@@ -8,8 +8,7 @@ import pandas as pd
 from georegression.ale_utils import adaptive_grid
 
 
-def weighted_ale(X, feature, predictor, weights=None, normalize=False):
-    min_bin_points = 3
+def weighted_ale(X, feature, predictor, weights=None, normalize=False, min_bin_points=5):
     fvals, _ = adaptive_grid(X[:, feature], min_bin_points)
 
     # find which interval each observation falls into
