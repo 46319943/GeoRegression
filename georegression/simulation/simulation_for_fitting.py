@@ -1,3 +1,4 @@
+from matplotlib import pyplot as plt
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
@@ -5,7 +6,7 @@ from sklearn.tree import DecisionTreeRegressor
 from georegression.simulation.simulation_utils import polynomial_function, sigmoid_function, sample_points, sample_x
 
 from georegression.stacking_model import StackingWeightModel
-from georegression.simulation.simulation import coef_strong
+from georegression.simulation.simulation import coef_strong, show_sample, coef_auto_gau_strong
 from georegression.weight_model import WeightModel
 
 
@@ -25,21 +26,28 @@ def f_sigmoid(X, C, points):
     )
 
 
-def generate_sample(count, f, coef_func, random_seed=1):
+def generate_sample(count, f, coef_func, random_seed=1, plot=False):
     np.random.seed(random_seed)
-    points = sample_points(count)
-    x1 = sample_x(count)
+    points = sample_points(count, bounds=(-10, 10))
+    x1 = sample_x(count, bounds=(-2, 2))
     coefficients = [coef_func()]
 
     X = np.stack((x1, ), axis=-1)
     y = f(X, coefficients, points)
+
+    if plot:
+        show_sample(X, y, points, coefficients)
+        plt.show(block=True)
 
     return X, y, points
 
 
 
 def square_strong():
-    X, y, points = generate_sample(5000, f_square, coef_strong, random_seed=1)
+    # X, y, points = generate_sample(5000, f_square, coef_strong, random_seed=1, plot=True)
+    # X, y, points = generate_sample(5000, f_square, coef_auto_gau_strong, random_seed=1, plot=True)
+    X, y, points = generate_sample(5000, f_sigmoid, coef_strong, random_seed=1, plot=False)
+
     X_plus = np.concatenate([X, points], axis=1)
 
     distance_measure = "euclidean"
@@ -115,3 +123,6 @@ def test_stacking():
             print('Stacking:', model.llocv_score_,
                   model.llocv_stacking_, neighbour_count, leave_out_rate)
 
+
+if __name__ == '__main__':
+    square_strong()
