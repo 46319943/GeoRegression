@@ -6,45 +6,12 @@ from sklearn.tree import DecisionTreeRegressor
 from georegression.local_ale import weighted_ale
 
 from georegression.stacking_model import StackingWeightModel
-from georegression.test.data.simulation import generate_sample, show_function_at_point
+from georegression.simulation.simulation import generate_sample
 from georegression.visualize.ale import plot_ale
 from georegression.weight_model import WeightModel
 
 X, y, points, _, _ = generate_sample(count=5000, random_seed=1)
 X_plus = np.concatenate([X, points], axis=1)
-
-
-def test_nonlinear_spatiotemporal_really_work():
-    neighbour_count = 0.4
-
-    model = WeightModel(
-        LinearRegression(),
-        distance_measure="euclidean",
-        kernel_type="bisquare",
-        neighbour_count=neighbour_count,
-        cache_data=True,
-        cache_estimator=True,
-    )
-
-    model.fit(X, y, [points])
-    print(model.llocv_score_)
-
-    model = WeightModel(
-        RandomForestRegressor(n_estimators=50),
-        distance_measure="euclidean",
-        kernel_type="bisquare",
-        neighbour_count=neighbour_count,
-        cache_data=True,
-        cache_estimator=True,
-    )
-
-    model.fit(X, y, [points])
-    print(model.llocv_score_)
-
-    # Fit random forest on the data and print oob score
-    model = RandomForestRegressor(oob_score=True)
-    model.fit(X, y)
-    print(model.oob_score_)
 
 
 def test_robust_under_various_data():
@@ -261,7 +228,7 @@ def draw_graph():
         # X_grid = np.stack([x_gird, x1], axis=-1)
         # y_grid = f(X_grid, coef, points[local_index])
 
-        from georegression.test.data.simulation import x2_coef
+        from georegression.simulation.simulation import x2_coef
         beta = coef[0](points[local_index])
         x2_average = x2_coef(points[local_index])
         y_grid = beta * 0.5 * ((x2_average + 2) ** 2 -
@@ -349,7 +316,6 @@ def draw_graph():
 
 
 if __name__ == "__main__":
-    # test_nonlinear_spatiotemporal_really_work()
     # test_robust_under_various_data()
     # test_without_X_plus()
     # test_GRF()

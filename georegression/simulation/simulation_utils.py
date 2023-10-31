@@ -114,8 +114,14 @@ def exponential_function(coefficient):
 
     return function
 
+def coefficient_function(coefficient):
+    def function(point):
+        return coefficient(point)
+    
+    return function
 
-def sample_points(n, dim=2, bounds=(-10, 10), numeraical_type="continuous"):
+
+def sample_points(n, dim=2, bounds=(-1, 1), numeraical_type="continuous"):
     """
     Sample n points in dim dimensions from a uniform distribution with given bounds.
     The bound of each dimension can be sampled from continuous range or discrete classes.
@@ -138,40 +144,34 @@ def sample_points(n, dim=2, bounds=(-10, 10), numeraical_type="continuous"):
     return points
 
 
-def sample_x(n, type='uniform', bounds=(-10, 10), mean=0, variance=1, scale=1):
+def sample_x(n, type='uniform', bounds=(-1, 1), mean=0, variance=1, scale=1, points=None):
     """
     Sample n x values from a specified distribution.
+    If points are given, the parameter of distribution can be determined by coefficient functions,
+    which introduce the spatial dependency.
     """
+    if callable(bounds[0]):
+        bounds[0] = bounds[0](points)
+
+    if callable(bounds[1]):
+        bounds[1] = bounds[1](points)
+
+    if callable(mean):
+        mean = mean(points)
+    
+    if callable(variance):
+        variance = variance(points)
+
+    if callable(scale):
+        scale = scale(points)
+
+
     if type == 'uniform':
-        return np.random.uniform(bounds[0], bounds[1], n)
+        base = np.random.uniform(0, 1, n)
+        return base * (bounds[1] - bounds[0]) + bounds[0] + mean
     elif type == 'normal':
-        return np.random.normal(mean, variance, n)
+        base = np.random.normal(0, 1, n)
+        return base * variance + mean
     elif type == 'exponential':
-        return np.random.exponential(scale, n)
-
-
-def sample_x_across_location(n, points, type='uniform', bound_coef=None, bounds=(-10, 10), mean=0, variance=1, scale=1):
-    """
-    Sample n x values from a specified distribution across a given location.
-    """
-
-    if callable(bound_coef):
-            x = np.zeros((n, ))
-            for i in range(points.shape[0]):
-                base_bound = bound_coef(points[i])
-                x[i] = np.random.uniform(base_bound + bounds[0], base_bound + bounds[1], 1)
-
-            return x
-        
-
-    # if isinstance(bounds[0], function):
-    #     low_bound_coef = bounds[0]
-    # if isinstance(bounds[1], function):
-    #     high_bound_coef = bounds[1]
-
-    # x = np.zeros((n, ))
-
-    # for i in range(points.shape[1]):
-    #     x[i] = np.random.uniform(low_bound_coef(points[i]), high_bound_coef(points[i]), 1)
-
-    # return x
+        base = np.random.exponential(1, n)
+        return base * scale

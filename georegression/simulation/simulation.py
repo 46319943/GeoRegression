@@ -7,16 +7,11 @@ from functools import partial
 import matplotlib.pyplot as plt
 import numpy as np
 
-from georegression.test.data.simulation_utils import gaussian_coefficient, interaction_function, radial_coefficient, directional_coefficient, sample_x_across_location, sine_coefficient, coefficient_wrapper, polynomial_function, sigmoid_function, \
+from georegression.simulation.simulation_utils import gaussian_coefficient, interaction_function, radial_coefficient, directional_coefficient, sine_coefficient, coefficient_wrapper, polynomial_function, sigmoid_function, \
     sample_points, sample_x
 
 
-def f_square(X, C, points):
-    return (
-            polynomial_function(C[0], 2)(X[:, 0], points) +
-            C[0](points) * 10 +
-            0
-    )
+
 
 def f_square_2(X, C, points):
     return (
@@ -25,22 +20,13 @@ def f_square_2(X, C, points):
             0
     )
 
-def f_sigmoid(X, C, points):
-    return (
-            sigmoid_function(C[0])(X[:, 0], points) +
-            0
-    )
-
-def  f_interact(X, C, points):
+def f_interact(X, C, points):
     return (
             interaction_function(C[0])(X[:, 0], X[:, 1], points) +
             0
     )
 
-f = f_interact
-
-
-def coef_f():
+def coef_strong():
     coef_radial = radial_coefficient(np.array([0, 0]), 1 / np.sqrt(200))
     coef_dir = directional_coefficient(np.array([1, 1]))
     coef_sin_1 = sine_coefficient(1, np.array([-1, 1]), 1)
@@ -55,7 +41,7 @@ def coef_f():
     return coef_sum
 
 
-def coef_f2():
+def coef_manual_gau():
     coef_radial = radial_coefficient(np.array([0, 0]), 1 / np.sqrt(200))
     coef_dir = directional_coefficient(np.array([1, 1]))
 
@@ -73,19 +59,7 @@ def coef_f2():
 
     return coef_sum
 
-
-def coef_f3():
-    coef_radial = radial_coefficient(np.array([0, 0]), 1 / np.sqrt(200) * 10)
-    coef_dir = directional_coefficient(np.array([1, 1]))
-
-    coef_sum = coefficient_wrapper(np.sum, coef_radial, coef_dir)
-
-    return coef_sum
-
-def coef_f4():
-    # Random seed 1
-    np.random.seed(1)
-
+def coef_auto_gau_weak():
     coef_radial = radial_coefficient(np.array([0, 0]), 1 / np.sqrt(200))
     coef_dir = directional_coefficient(np.array([1, 1]))
 
@@ -110,15 +84,12 @@ def coef_f4():
     return coef_sum
 
 
-def coef_f5():
-    # Random seed 1
-    # np.random.seed(1)
-
+def coef_auto_gau_strong():
     coef_radial = radial_coefficient(np.array([0, 0]), 1 / np.sqrt(200))
     coef_dir = directional_coefficient(np.array([1, 1]))
 
     gau_coef_list = []
-    for i in range(1000):
+    for _ in range(1000):
         # Randomly generate the parameters for gaussian coefficient
         center = np.random.uniform(-10, 10, 2)
         amplitude = np.random.uniform(1, 2)
@@ -138,22 +109,27 @@ def coef_f5():
     return coef_sum
 
 
-coef_func = coef_f2
+f = f_interact
+coef_func = coef_manual_gau
 x2_coef = coefficient_wrapper(partial(np.multiply, 3) ,coef_func())
 
-def generate_sample(random_seed=None, count=100, f=f, function_coef_num=1, coef_func=coef_func):
+def generate_sample(random_seed=None, count=100, f=f, coef_func=coef_func):
     np.random.seed(random_seed)
 
     points = sample_points(count)
 
     # x1 = sample_x(count)
-    x1 = sample_x_across_location(count, points, bound_coef=coef_func(), bounds=(-1, 1))
+    x1 = sample_x(count, mean=coef_func(), bounds=(-1, 1), points=points)
+
     # x2 = sample_x(count)
     # x2 = sample_x(count, bounds=(0, 1))
     x2_coef = coefficient_wrapper(partial(np.multiply, 3) ,coef_func())
-    x2 = sample_x_across_location(count, points, bound_coef=x2_coef, bounds=(-2, 2))
-
-    coefficients = [coef_func() for _ in range(function_coef_num)]
+    x2 = sample_x(count, mean=x2_coef, bounds=(-2, 2), points=points)
+    
+    if isinstance(coef_func, list):
+        coefficients = [func() for func in coef_func]
+    else:
+        coefficients = [coef_func()]
 
     X = np.stack((x1, x2), axis=-1)
     y = f(X, coefficients, points)
@@ -208,39 +184,18 @@ def show_sample(X, y, points, coefficients):
     plt.suptitle("The value of coefficients across the plane")
 
 
-def show_function_at_point(function, coef, point, X_bounds=(-10, 10), ax=None):
-    """
-    Show the function value at a given point.
-    """
-
-    # Generate the x values
-    x1 = np.linspace(X_bounds[0], X_bounds[1], 1000)
-    x2 = np.linspace(X_bounds[0], X_bounds[1], 1000)
-
-    X = np.stack((x1, x2), axis=-1)
-
-    # Calculate the function value
-    y = function(X, coef, point)
-
-    if ax is None:
-        fig, ax = plt.subplots()
-        ax.set_xlabel("x")
-        ax.set_ylabel("y")
-        ax.set_title(f"The function value at point {point}")
-        
-    # Plot the function
-    ax.plot(x1, y, label="Function value")
-    
-    return ax
-
-
 def main():
     X, y, points, f, coefficients = generate_sample(count=5000, random_seed=1)
 
     show_sample(X, y, points, coefficients)
-    show_function_at_point(f, coefficients, points[0])
-
     plt.show(block=True)
+
+    # Save all figure to the local directory
+    # for i in plt.get_fignums():
+        # plt.figure(i)
+        # plt.savefig(f"figure{i}.png")
+
+
 
 
 if __name__ == '__main__':
