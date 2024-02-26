@@ -1,3 +1,4 @@
+import time
 from matplotlib import pyplot as plt
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
@@ -44,9 +45,9 @@ def generate_sample(count, f, coef_func, random_seed=1, plot=False):
 
 
 def square_strong():
-    # X, y, points = generate_sample(5000, f_square, coef_strong, random_seed=1, plot=True)
+    X, y, points = generate_sample(5000, f_square, coef_strong, random_seed=1, plot=False)
     # X, y, points = generate_sample(5000, f_square, coef_auto_gau_strong, random_seed=1, plot=True)
-    X, y, points = generate_sample(5000, f_sigmoid, coef_strong, random_seed=1, plot=False)
+    # X, y, points = generate_sample(5000, f_sigmoid, coef_strong, random_seed=1, plot=False)
 
     X_plus = np.concatenate([X, points], axis=1)
 
@@ -60,8 +61,11 @@ def square_strong():
         neighbour_count=0.03,
         neighbour_leave_out_rate=0.15,
     )
+    t1 = time.time()
     model.fit(X_plus, y, [points])
+    t2 = time.time()
     print('Stacking:', model.llocv_score_, model.llocv_stacking_)
+    print(t2 - t1)
 
     model = WeightModel(
         RandomForestRegressor(n_estimators=50),
@@ -69,8 +73,11 @@ def square_strong():
         kernel_type,
         neighbour_count=0.03,
     )
+    t1 = time.time()
     model.fit(X_plus, y, [points])
+    t2 = time.time()
     print('GRF:', model.llocv_score_)
+    print(t2 - t1)
 
     model = WeightModel(
         LinearRegression(),
@@ -78,16 +85,26 @@ def square_strong():
         kernel_type,
         neighbour_count=0.03,
     )
+    t1 = time.time()
     model.fit(X_plus, y, [points])
+    t2 = time.time()
     print('GWR:', model.llocv_score_)
+    print(t2 - t1)
+
 
     model = RandomForestRegressor(oob_score=True, n_estimators=2000, n_jobs=-1)
+    t1 = time.time()
     model.fit(X_plus, y)
+    t2 = time.time()
     print('RF:', model.oob_score_)
+    print(t2 - t1)
 
     model = LinearRegression()
+    t1 = time.time()
     model.fit(X_plus, y)
+    t2 = time.time()
     print('LR:', model.score(X_plus, y))
+    print(t2 - t1)
 
 
 def test_GRF():

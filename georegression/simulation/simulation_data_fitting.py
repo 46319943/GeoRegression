@@ -254,7 +254,7 @@ def draw_graph():
         fval, ale = ale_result
         diff = ale[0] - base_value_real
         ale = ale - diff
-        ax.plot(fval, ale, label="Neighbour ALE")
+        # ax.plot(fval, ale, label="Neighbour ALE")
 
 
         # Add non-weighted ALE plot

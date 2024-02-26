@@ -10,6 +10,11 @@ import numpy as np
 from georegression.simulation.simulation_utils import gaussian_coefficient, interaction_function, radial_coefficient, directional_coefficient, sine_coefficient, coefficient_wrapper, polynomial_function, sigmoid_function, \
     sample_points, sample_x
 
+def f_interact(X, C, points):
+    return (
+            interaction_function(C[0])(X[:, 0], X[:, 1], points) +
+            0
+    )
 
 def f_square_2(X, C, points):
     return (
@@ -109,8 +114,7 @@ def coef_auto_gau_strong():
     return coef_sum
 
 
-# f = f_interact
-f = None
+f = f_interact
 coef_func = coef_manual_gau
 x2_coef = coefficient_wrapper(partial(np.multiply, 3), coef_func())
 
