@@ -7,20 +7,29 @@ from functools import partial
 import matplotlib.pyplot as plt
 import numpy as np
 
-from georegression.simulation.simulation_utils import gaussian_coefficient, interaction_function, radial_coefficient, directional_coefficient, sine_coefficient, coefficient_wrapper, polynomial_function, sigmoid_function, \
-    sample_points, sample_x
+from georegression.simulation.simulation_utils import (
+    gaussian_coefficient,
+    interaction_function,
+    radial_coefficient,
+    directional_coefficient,
+    sine_coefficient,
+    coefficient_wrapper,
+    polynomial_function,
+    sigmoid_function,
+    sample_points,
+    sample_x,
+)
+
 
 def f_interact(X, C, points):
-    return (
-            interaction_function(C[0])(X[:, 0], X[:, 1], points) +
-            0
-    )
+    return interaction_function(C[0])(X[:, 0], X[:, 1], points) + 0
+
 
 def f_square_2(X, C, points):
     return (
-        polynomial_function(C[0], 2)(X[:, 0], points) +
-        polynomial_function(C[1], 2)(X[:, 1], points) +
-        0
+        polynomial_function(C[0], 2)(X[:, 0], points)
+        + polynomial_function(C[1], 2)(X[:, 1], points)
+        + 0
     )
 
 
@@ -34,8 +43,7 @@ def coef_strong():
     coef_gau_2 = gaussian_coefficient(np.array([-5, -5]), 3, amplitude=2)
     coef_gau = coefficient_wrapper(np.sum, coef_gau_1, coef_gau_2)
 
-    coef_sum = coefficient_wrapper(
-        np.sum, coef_radial, coef_dir, coef_sin, coef_gau)
+    coef_sum = coefficient_wrapper(np.sum, coef_radial, coef_dir, coef_sin, coef_gau)
 
     return coef_sum
 
@@ -44,18 +52,19 @@ def coef_manual_gau():
     coef_radial = radial_coefficient(np.array([0, 0]), 1 / np.sqrt(200))
     coef_dir = directional_coefficient(np.array([1, 1]))
 
-    coef_gau_1 = gaussian_coefficient(
-        np.array([-5, 5]), [[3, 4], [4, 8]], amplitude=-1)
+    coef_gau_1 = gaussian_coefficient(np.array([-5, 5]), [[3, 4], [4, 8]], amplitude=-1)
     coef_gau_2 = gaussian_coefficient(np.array([-2, -5]), 5, amplitude=2)
     coef_gau_3 = gaussian_coefficient(np.array([8, 3]), 10, amplitude=-1.5)
     coef_gau_4 = gaussian_coefficient(
-        np.array([2, 8]), [[3, 0], [0, 15]], amplitude=0.8)
+        np.array([2, 8]), [[3, 0], [0, 15]], amplitude=0.8
+    )
     coef_gau_5 = gaussian_coefficient(np.array([5, -10]), 1, amplitude=1)
     coef_gau_6 = gaussian_coefficient(np.array([-10, -10]), 15, amplitude=1.5)
     coef_gau_6 = gaussian_coefficient(np.array([-11, 0]), 5, amplitude=2)
     coef_gau_6 = gaussian_coefficient(np.array([-11, 0]), 5, amplitude=2)
     coef_gau = coefficient_wrapper(
-        np.sum, coef_gau_1, coef_gau_2, coef_gau_3, coef_gau_4, coef_gau_5, coef_gau_6)
+        np.sum, coef_gau_1, coef_gau_2, coef_gau_3, coef_gau_4, coef_gau_5, coef_gau_6
+    )
 
     coef_sum = coefficient_wrapper(np.sum, coef_radial, coef_dir, coef_gau)
 
@@ -75,8 +84,7 @@ def coef_auto_gau_weak():
         amplitude *= sign
         sigma1 = np.random.uniform(0.5, 5)
         sigma2 = np.random.uniform(0.5, 5)
-        cov = np.random.uniform(- np.sqrt(sigma1 * sigma2),
-                                np.sqrt(sigma1 * sigma2))
+        cov = np.random.uniform(-np.sqrt(sigma1 * sigma2), np.sqrt(sigma1 * sigma2))
         sigma = np.array([[sigma1, cov], [cov, sigma2]])
 
         coef_gau = gaussian_coefficient(center, sigma, amplitude=amplitude)
@@ -101,8 +109,7 @@ def coef_auto_gau_strong():
         amplitude *= sign
         sigma1 = np.random.uniform(0.2, 1)
         sigma2 = np.random.uniform(0.2, 1)
-        cov = np.random.uniform(- np.sqrt(sigma1 * sigma2),
-                                np.sqrt(sigma1 * sigma2))
+        cov = np.random.uniform(-np.sqrt(sigma1 * sigma2), np.sqrt(sigma1 * sigma2))
         sigma = np.array([[sigma1, cov], [cov, sigma2]])
 
         coef_gau = gaussian_coefficient(center, sigma, amplitude=amplitude)
@@ -167,28 +174,31 @@ def show_sample(X, y, points, coefficients):
         plt.ylabel("y")
         plt.title(f"The {i}-th feature of X")
     plt.suptitle("The value of X across the plane")
+    plt.savefig("Plot/Simulation_X.png")
 
     # Plot y using scatter and boxplot
     plt.figure()
-    plt.subplot(1, 2, 1)
     plt.scatter(points[:, 0], points[:, 1], c=y)
+    plt.colorbar()
     plt.title("The value of y across the plane")
+    plt.savefig("Plot/Simulation_y.png")
 
-    plt.subplot(1, 2, 2)
+    plt.figure()
     plt.boxplot(y)
     plt.title("The distribution of y")
-
-    plt.colorbar()
+    plt.savefig("Plot/Simulation_y_boxplot.png")
 
     # Plot coefficients
     plt.figure()
     for i in range(dim_coef):
         plt.subplot(dim_coef, 1, i + 1)
-        plt.scatter(points[:, 0], points[:, 1],
-                    c=coefficients[i](points), cmap='Spectral')
+        plt.scatter(
+            points[:, 0], points[:, 1], c=coefficients[i](points), cmap="Spectral"
+        )
         plt.colorbar()
         plt.title(f"The {i}-th coefficient across the plane")
     plt.suptitle("The value of coefficients across the plane")
+    plt.savefig("Plot/Simulation_Coefficients.png")
 
 
 def main():
@@ -203,5 +213,5 @@ def main():
     # plt.savefig(f"figure{i}.png")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

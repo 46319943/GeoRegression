@@ -4,6 +4,7 @@ Demo
 *.jpg
 *.html
 *.pkl
+*.json*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
