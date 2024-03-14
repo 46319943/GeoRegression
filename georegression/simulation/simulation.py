@@ -66,7 +66,8 @@ def coef_manual_gau():
         np.sum, coef_gau_1, coef_gau_2, coef_gau_3, coef_gau_4, coef_gau_5, coef_gau_6
     )
 
-    coef_sum = coefficient_wrapper(np.sum, coef_radial, coef_dir, coef_gau)
+    # coef_sum = coefficient_wrapper(np.sum, coef_radial, coef_dir, coef_gau)
+    coef_sum = coefficient_wrapper(np.sum, coef_radial, coef_gau)
 
     return coef_sum
 
@@ -129,7 +130,7 @@ x2_coef = coefficient_wrapper(partial(np.multiply, 3), coef_func())
 def generate_sample(random_seed=None, count=100, f=f, coef_func=coef_func):
     np.random.seed(random_seed)
 
-    points = sample_points(count)
+    points = sample_points(count, bounds=[[-10, 10], [-10, 10]])
 
     # x1 = sample_x(count)
     x1 = sample_x(count, mean=coef_func(), bounds=(-1, 1), points=points)
