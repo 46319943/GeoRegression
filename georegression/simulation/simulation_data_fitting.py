@@ -128,7 +128,6 @@ def draw_graph():
 
         plt.show(block=True)
 
-        break
 
     importance_global = model.importance_score_global()
     print(importance_global)

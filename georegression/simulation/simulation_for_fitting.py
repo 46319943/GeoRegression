@@ -1,5 +1,6 @@
 import json
 import time
+from functools import partial
 
 from matplotlib import pyplot as plt
 from sklearn.ensemble import RandomForestRegressor
@@ -152,6 +153,7 @@ def coef_auto_gau_strong():
 
     return coef_sum
 
+
 def coef_strong():
     coef_radial = radial_coefficient(np.array([0, 0]), 1 / np.sqrt(200))
     coef_dir = directional_coefficient(np.array([1, 1]))
@@ -168,17 +170,20 @@ def coef_strong():
 
 
 def f_square(X, C, points):
+    return polynomial_function(C[0], 2)(X[:, 0], points) + 0
+
+
+def f_square_2(X, C, points):
     return (
         polynomial_function(C[0], 2)(X[:, 0], points)
+        + polynomial_function(C[1], 2)(X[:, 1], points)
         + 0
     )
 
+
 def f_square_const(X, C, points):
-    return (
-        polynomial_function(C[0], 2)(X[:, 0], points)
-        + C[0](points) * 10
-        + 0
-    )
+    return polynomial_function(C[0], 2)(X[:, 0], points) + C[0](points) * 10 + 0
+
 
 def f_sigmoid(X, C, points):
     return sigmoid_function(C[0])(X[:, 0], points) + 0
@@ -284,7 +289,9 @@ def square_strong_5000():
 
 
 def square_gau_strong_500():
-    X, y, points = generate_sample(500, f_square, coef_auto_gau_strong, random_seed=1, plot=True)
+    X, y, points = generate_sample(
+        500, f_square, coef_auto_gau_strong, random_seed=1, plot=True
+    )
     # test_models(
     #     X,
     #     y,
@@ -312,7 +319,9 @@ def square_gau_strong_500():
 
 
 def square_gau_weak_500():
-    X, y, points = generate_sample(500, f_square, coef_auto_gau_weak, random_seed=1, plot=True)
+    X, y, points = generate_sample(
+        500, f_square, coef_auto_gau_weak, random_seed=1, plot=True
+    )
     # test_models(
     #     X,
     #     y,
@@ -337,6 +346,49 @@ def square_gau_weak_500():
         gwr_neighbour_count=0.1,
         rf_n_estimators=2000,
     )
+
+
+def square_2_gau_strong_weak_5000():
+    np.random.seed(1)
+
+    points = sample_points(5000, bounds=(-10, 10))
+    x1 = sample_x(5000, bounds=(-10, 10))
+    x2 = sample_x(5000, bounds=(-10, 10))
+
+    f = f_square_2
+    coefficients = [
+        coefficient_wrapper(partial(np.multiply, 2), coef_auto_gau_strong()),
+        coef_auto_gau_weak()
+    ]
+
+    X = np.stack((x1, x2), axis=-1)
+    y = f(X, coefficients, points)
+
+    # test_models(
+    #     X,
+    #     y,
+    #     points,
+    #     [0.01, 0.03, 0.05],
+    #     [0.1, 0.15, 0.2],
+    #     [0.01, 0.03, 0.05],
+    #     [0.01, 0.03, 0.05],
+    #     5000,
+    #     "f_square_2",
+    #     "coef_gau_strong2_weak",
+    # )
+
+    fit_models(
+        X,
+        y,
+        points,
+        stacking_neighbour_count=0.03,
+        stacking_neighbour_leave_out_rate=0.2,
+        grf_neighbour_count=0.01,
+        grf_n_estimators=50,
+        gwr_neighbour_count=0.03,
+        rf_n_estimators=2000,
+    )
+
 
 def test_models(
     X,
@@ -500,5 +552,6 @@ if __name__ == "__main__":
     # square_strong_100()
     # square_strong_500()
     # square_strong_5000()
-    square_gau_strong_500()
+    # square_gau_strong_500()
     # square_gau_weak_500()
+    square_2_gau_strong_weak_5000()

@@ -190,16 +190,14 @@ def show_sample(X, y, points, coefficients):
     plt.savefig("Plot/Simulation_y_boxplot.png")
 
     # Plot coefficients
-    plt.figure()
     for i in range(dim_coef):
-        plt.subplot(dim_coef, 1, i + 1)
+        plt.figure()
         plt.scatter(
             points[:, 0], points[:, 1], c=coefficients[i](points), cmap="Spectral"
         )
         plt.colorbar()
         plt.title(f"The {i}-th coefficient across the plane")
-    plt.suptitle("The value of coefficients across the plane")
-    plt.savefig("Plot/Simulation_Coefficients.png")
+        plt.savefig(f"Plot/Simulation_Coefficients_{i}.png")
 
 
 def main():
