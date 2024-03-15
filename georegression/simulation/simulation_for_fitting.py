@@ -1,5 +1,6 @@
 import json
 import time
+import georegression.visualize
 from functools import partial
 
 from matplotlib import pyplot as plt
@@ -35,7 +36,7 @@ def fit_models(
     result = {}
 
     model = StackingWeightModel(
-        DecisionTreeRegressor(splitter="random", max_depth=1),
+        DecisionTreeRegressor(splitter="random", max_depth=X.shape[1]),
         distance_measure,
         kernel_type,
         neighbour_count=stacking_neighbour_count,
@@ -189,6 +190,10 @@ def f_sigmoid(X, C, points):
     return sigmoid_function(C[0])(X[:, 0], points) + 0
 
 
+def f_interact(X, C, points):
+    return interaction_function(C[0])(X[:, 0], X[:, 1], points) + 0
+
+
 def generate_sample(count, f, coef_func, random_seed=1, plot=False):
     np.random.seed(random_seed)
     points = sample_points(count, bounds=(-10, 10))
@@ -259,6 +264,36 @@ def square_strong_500():
     )
 
 
+def square_strong_1000():
+    X, y, points = generate_sample(
+        1000, f_square, coef_strong, random_seed=1, plot=True
+    )
+    # test_models(
+    #     X,
+    #     y,
+    #     points,
+    #     [0.01, 0.02, 0.03, 0.04],
+    #     [0.1, 0.2, 0.3, 0.4],
+    #     [0.01, 0.02, 0.03, 0.04],
+    #     [0.01, 0.02, 0.03, 0.04],
+    #     1000,
+    #     "f_square",
+    #     "coef_strong",
+    # )
+
+    fit_models(
+        X,
+        y,
+        points,
+        stacking_neighbour_count=0.02,
+        stacking_neighbour_leave_out_rate=0.3,
+        grf_neighbour_count=0.02,
+        grf_n_estimators=50,
+        gwr_neighbour_count=0.03,
+        rf_n_estimators=2000,
+    )
+
+
 def square_strong_5000():
     X, y, points = generate_sample(
         5000, f_square, coef_strong, random_seed=1, plot=True
@@ -284,6 +319,36 @@ def square_strong_5000():
         grf_neighbour_count=0.01,
         grf_n_estimators=50,
         gwr_neighbour_count=0.015,
+        rf_n_estimators=2000,
+    )
+
+
+def square_gau_strong_100():
+    X, y, points = generate_sample(
+        100, f_square, coef_auto_gau_strong, random_seed=1, plot=True
+    )
+    # test_models(
+    #     X,
+    #     y,
+    #     points,
+    #     [0.05, 0.08, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5],
+    #     [0.05, 0.1, 0.15, 0.2, 0.25],
+    #     [0.05, 0.08, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5],
+    #     [0.05, 0.08, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5],
+    #     100,
+    #     "f_square",
+    #     "coef_gau_strong",
+    # )
+
+    fit_models(
+        X,
+        y,
+        points,
+        stacking_neighbour_count=0.45,
+        stacking_neighbour_leave_out_rate=0.2,
+        grf_neighbour_count=0.45,
+        grf_n_estimators=50,
+        gwr_neighbour_count=0.5,
         rf_n_estimators=2000,
     )
 
@@ -318,6 +383,96 @@ def square_gau_strong_500():
     )
 
 
+def square_gau_strong_1000():
+    X, y, points = generate_sample(
+        1000, f_square, coef_auto_gau_strong, random_seed=1, plot=True
+    )
+    # test_models(
+    #     X,
+    #     y,
+    #     points,
+    #     [0.01, 0.02, 0.03, 0.04, 0.05],
+    #     [0.05, 0.1, 0.15, 0.2],
+    #     [0.01, 0.02, 0.03, 0.04, 0.05],
+    #     [0.01, 0.02, 0.03, 0.04, 0.05],
+    #     1000,
+    #     "f_square",
+    #     "coef_gau_strong",
+    # )
+
+    fit_models(
+        X,
+        y,
+        points,
+        stacking_neighbour_count=0.02,
+        stacking_neighbour_leave_out_rate=0.05,
+        grf_neighbour_count=0.01,
+        grf_n_estimators=50,
+        gwr_neighbour_count=0.04,
+        rf_n_estimators=2000,
+    )
+
+
+def square_gau_strong_5000():
+    X, y, points = generate_sample(
+        5000, f_square, coef_auto_gau_strong, random_seed=1, plot=True
+    )
+    # test_models(
+    #     X,
+    #     y,
+    #     points,
+    #     [0.003, 0.005, 0.008, 0.01, 0.015, 0.02],
+    #     [0.05, 0.1, 0.15, 0.2],
+    #     [0.003, 0.005, 0.008, 0.01, 0.015, 0.02],
+    #     [0.003, 0.005, 0.008, 0.01, 0.015, 0.02],
+    #     5000,
+    #     "f_square",
+    #     "coef_gau_strong",
+    # )
+
+    fit_models(
+        X,
+        y,
+        points,
+        stacking_neighbour_count=0.008,
+        stacking_neighbour_leave_out_rate=0.2,
+        grf_neighbour_count=0.01,
+        grf_n_estimators=50,
+        gwr_neighbour_count=0.01,
+        rf_n_estimators=2000,
+    )
+
+
+def square_gau_weak_100():
+    X, y, points = generate_sample(
+        100, f_square, coef_auto_gau_weak, random_seed=1, plot=True
+    )
+    # test_models(
+    #     X,
+    #     y,
+    #     points,
+    #     [0.05, 0.08, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5],
+    #     [0.05, 0.1, 0.15, 0.2, 0.25],
+    #     [0.05, 0.08, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5],
+    #     [0.05, 0.08, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5],
+    #     500,
+    #     "f_square",
+    #     "coef_gau_weak",
+    # )
+
+    fit_models(
+        X,
+        y,
+        points,
+        stacking_neighbour_count=0.25,
+        stacking_neighbour_leave_out_rate=0.25,
+        grf_neighbour_count=0.08,
+        grf_n_estimators=50,
+        gwr_neighbour_count=0.3,
+        rf_n_estimators=2000,
+    )
+
+
 def square_gau_weak_500():
     X, y, points = generate_sample(
         500, f_square, coef_auto_gau_weak, random_seed=1, plot=True
@@ -348,6 +503,66 @@ def square_gau_weak_500():
     )
 
 
+def square_gau_weak_1000():
+    X, y, points = generate_sample(
+        1000, f_square, coef_auto_gau_weak, random_seed=1, plot=True
+    )
+    # test_models(
+    #     X,
+    #     y,
+    #     points,
+    #     [0.03, 0.04, 0.05, 0.06],
+    #     [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35],
+    #     [0.03, 0.04, 0.05, 0.06],
+    #     [0.03, 0.04, 0.05, 0.06],
+    #     1000,
+    #     "f_square",
+    #     "coef_gau_weak",
+    # )
+
+    fit_models(
+        X,
+        y,
+        points,
+        stacking_neighbour_count=0.05,
+        stacking_neighbour_leave_out_rate=0.25,
+        grf_neighbour_count=0.06,
+        grf_n_estimators=50,
+        gwr_neighbour_count=0.06,
+        rf_n_estimators=2000,
+    )
+
+
+def square_gau_weak_5000():
+    X, y, points = generate_sample(
+        5000, f_square, coef_auto_gau_weak, random_seed=1, plot=True
+    )
+    # test_models(
+    #     X,
+    #     y,
+    #     points,
+    #     [0.008, 0.01, 0.015, 0.02, 0.025],
+    #     [0.2, 0.25, 0.3],
+    #     [0.008, 0.01, 0.015, 0.02, 0.025],
+    #     [0.008, 0.01, 0.015, 0.02, 0.025],
+    #     5000,
+    #     "f_square",
+    #     "coef_gau_weak",
+    # )
+
+    fit_models(
+        X,
+        y,
+        points,
+        stacking_neighbour_count=0.02,
+        stacking_neighbour_leave_out_rate=0.3,
+        grf_neighbour_count=0.01,
+        grf_n_estimators=50,
+        gwr_neighbour_count=0.02,
+        rf_n_estimators=2000,
+    )
+
+
 def square_2_gau_strong_weak_5000():
     np.random.seed(1)
 
@@ -358,7 +573,7 @@ def square_2_gau_strong_weak_5000():
     f = f_square_2
     coefficients = [
         coefficient_wrapper(partial(np.multiply, 2), coef_auto_gau_strong()),
-        coef_auto_gau_weak()
+        coef_auto_gau_weak(),
     ]
 
     X = np.stack((x1, x2), axis=-1)
@@ -368,10 +583,10 @@ def square_2_gau_strong_weak_5000():
     #     X,
     #     y,
     #     points,
-    #     [0.01, 0.03, 0.05],
-    #     [0.1, 0.15, 0.2],
-    #     [0.01, 0.03, 0.05],
-    #     [0.01, 0.03, 0.05],
+    #     [0.02, 0.03, 0.04, 0.05],
+    #     [0.1, 0.15, 0.2, 0.25],
+    #     [0.02, 0.03, 0.04, 0.05],
+    #     [0.02, 0.03, 0.04, 0.05],
     #     5000,
     #     "f_square_2",
     #     "coef_gau_strong2_weak",
@@ -381,11 +596,11 @@ def square_2_gau_strong_weak_5000():
         X,
         y,
         points,
-        stacking_neighbour_count=0.03,
+        stacking_neighbour_count=0.02,
         stacking_neighbour_leave_out_rate=0.2,
-        grf_neighbour_count=0.01,
+        grf_neighbour_count=0.02,
         grf_n_estimators=50,
-        gwr_neighbour_count=0.03,
+        gwr_neighbour_count=0.02,
         rf_n_estimators=2000,
     )
 
@@ -474,7 +689,7 @@ def test_stacking(X, y, points, neighbour_counts, leave_out_rates):
 
     distance_measure = "euclidean"
     kernel_type = "bisquare"
-    local_estimator = DecisionTreeRegressor(splitter="random", max_depth=1)
+    local_estimator = DecisionTreeRegressor(splitter="random", max_depth=X.shape[1])
 
     result = []
 
@@ -551,7 +766,16 @@ def test_GWR(X, y, points, neighbour_counts):
 if __name__ == "__main__":
     # square_strong_100()
     # square_strong_500()
+    # square_strong_1000()
     # square_strong_5000()
+    # square_gau_strong_100()
     # square_gau_strong_500()
+    # square_gau_strong_1000()
+    # square_gau_strong_5000()
+    # square_gau_weak_100()
     # square_gau_weak_500()
+    # square_gau_weak_1000()
+    # square_gau_weak_5000()
     square_2_gau_strong_weak_5000()
+
+    pass

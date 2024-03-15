@@ -168,18 +168,17 @@ def show_sample(X, y, points, coefficients):
     # Plot X. Add colorbar for each dimension.
     plt.figure()
     for i in range(dim_x):
-        plt.subplot(dim_x, 1, i + 1)
-        plt.scatter(points[:, 0], points[:, 1], c=X[:, i])
+        plt.figure()
+        plt.scatter(points[:, 0], points[:, 1], c=X[:, i], cmap="Spectral")
         plt.colorbar()
         plt.xlabel("x")
         plt.ylabel("y")
-        plt.title(f"The {i}-th feature of X")
-    plt.suptitle("The value of X across the plane")
-    plt.savefig("Plot/Simulation_X.png")
+        plt.title(f"The {i+1}-th feature of X")
+        plt.savefig(f"Plot/Simulation_X_{i+1}.png")
 
     # Plot y using scatter and boxplot
     plt.figure()
-    plt.scatter(points[:, 0], points[:, 1], c=y)
+    plt.scatter(points[:, 0], points[:, 1], c=y, cmap="Spectral")
     plt.colorbar()
     plt.title("The value of y across the plane")
     plt.savefig("Plot/Simulation_y.png")
@@ -196,7 +195,7 @@ def show_sample(X, y, points, coefficients):
             points[:, 0], points[:, 1], c=coefficients[i](points), cmap="Spectral"
         )
         plt.colorbar()
-        plt.title(f"The {i}-th coefficient across the plane")
+        plt.title(f"The {i+1}-th coefficient across the plane")
         plt.savefig(f"Plot/Simulation_Coefficients_{i}.png")
 
 

@@ -1,8 +1,9 @@
+import time
 from functools import partial
 
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.tree import DecisionTreeRegressor
 from georegression.local_ale import weighted_ale
@@ -126,7 +127,7 @@ def draw_graph():
     X_plus = np.concatenate([X, points], axis=1)
     distance_measure = "euclidean"
     kernel_type = "bisquare"
-    neighbour_count = 0.01
+    neighbour_count = 0.02
 
     model = WeightModel(
         RandomForestRegressor(n_estimators=50),
@@ -161,5 +162,30 @@ def draw_graph():
         fig.show()
 
 
+def fit_stacking():
+    X, y, points = generate_sample(
+        count=5000, f=f_square_2, coef_func=[coef_auto_gau_strong, coef_auto_gau_weak], random_seed=1,
+        plot=True
+    )
+    X_plus = np.concatenate([X, points], axis=1)
+    distance_measure = "euclidean"
+    kernel_type = "bisquare"
+
+    model = StackingWeightModel(
+        # ExtraTreesRegressor(n_estimators=10, max_depth=X.shape[1]),
+        DecisionTreeRegressor(splitter="random", max_depth=X.shape[1]),
+        distance_measure,
+        kernel_type,
+        neighbour_count=0.02,
+        neighbour_leave_out_rate=0.2,
+    )
+    t1 = time.time()
+    model.fit(X_plus, y, [points])
+    t2 = time.time()
+    print("Stacking:", model.llocv_score_, model.llocv_stacking_)
+    print(t2 - t1)
+
+
 if __name__ == "__main__":
-    draw_graph()
+    # draw_graph()
+    fit_stacking()
