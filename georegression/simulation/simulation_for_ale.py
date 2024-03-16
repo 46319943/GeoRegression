@@ -143,13 +143,15 @@ def draw_graph():
         distance_measure,
         kernel_type,
         neighbour_count=neighbour_count,
-        cache_data=False,
-        cache_estimator=False,
-        # cache_data=True,
-        # cache_estimator=True,
+        # cache_data=False,
+        # cache_estimator=False,
+        cache_data=True,
+        cache_estimator=True,
     )
-    model.fit(X, y, [points])
+    model.fit(X_plus, y, [points])
     print("GRF:", model.llocv_score_)
+
+    X = X_plus
 
     feature_index = 0
 
@@ -194,12 +196,12 @@ def draw_graph():
         x1_base = np.empty(500)
         x1_base[:] = np.min(x_neighbour)
         x2_base = np.random.uniform(x2_average - 2, x2_average + 2, 500)
-        base_value_real = estimator.predict(
-            np.stack([x1_base, x2_base], axis=-1)
-        ).mean()
-
-        diff = ale[0] - base_value_real
-        ale = ale - diff
+        # base_value_real = estimator.predict(
+        #     np.stack([x1_base, x2_base, points], axis=-1)
+        # ).mean()
+        #
+        # diff = ale[0] - base_value_real
+        # ale = ale - diff
 
         fig = plot_ale(fval, ale, x_neighbour)
         ax = fig.get_axes()[0]
@@ -237,12 +239,12 @@ def draw_graph():
         x1_base = np.empty(500)
         x1_base[:] = np.min(x_neighbour)
         x2_base = np.random.choice(X[:, 1], 500)
-        base_value_real = estimator.predict(
-            np.stack([x1_base, x2_base], axis=-1)
-        ).mean()
-
-        diff = ale[0] - base_value_real
-        ale = ale - diff
+        # base_value_real = estimator.predict(
+        #     np.stack([x1_base, x2_base, points], axis=-1)
+        # ).mean()
+        #
+        # diff = ale[0] - base_value_real
+        # ale = ale - diff
 
         ax.plot(fval, ale, label="Non-weighted ALE")
 

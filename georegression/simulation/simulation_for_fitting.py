@@ -802,19 +802,32 @@ def interact_ale():
     # model.fit(X, y, [points])
     # print("GRF:", model.llocv_score_)
 
-    test_models(
+    # test_models(
+    #     X,
+    #     y,
+    #     points,
+    #     [],
+    #     # [0.02, 0.03, 0.04, 0.05],
+    #     [],
+    #     # [0.1, 0.15, 0.2, 0.25],
+    #     [0.02, 0.03, 0.04, 0.05],
+    #     [0.02, 0.03, 0.04, 0.05],
+    #     5000,
+    #     "f_interact",
+    #     "coef_gau_strong2_weak",
+    # )
+
+    return fit_models(
         X,
         y,
         points,
-        [],
-        # [0.02, 0.03, 0.04, 0.05],
-        [],
-        # [0.1, 0.15, 0.2, 0.25],
-        [0.02, 0.03, 0.04, 0.05],
-        [0.02, 0.03, 0.04, 0.05],
-        5000,
-        "f_interact",
-        "coef_gau_strong2_weak",
+        stacking_neighbour_count=0.03,
+        stacking_neighbour_leave_out_rate=0.15,
+        grf_neighbour_count=0.03,
+        grf_n_estimators=50,
+        gwr_neighbour_count=0.02,
+        rf_n_estimators=2000,
+        info={"f": "f_square_2", "coef": "coef_gau_strong2_weak", "count": 5000},
     )
 
 

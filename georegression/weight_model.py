@@ -320,8 +320,6 @@ class WeightModel(BaseEstimator, RegressorMixin):
         if self.cache_data:
             self.X = X
             self.y = y
-            self.coordinate_vector_list = coordinate_vector_list
-            self.coordinate_vector_dimension_ = len(coordinate_vector_list)
 
         if weight_matrix is None:
             weight_matrix = weight_matrix_from_points(coordinate_vector_list, coordinate_vector_list, self.distance_measure, self.kernel_type, self.distance_ratio, self.bandwidth,

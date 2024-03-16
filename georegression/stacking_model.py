@@ -255,8 +255,7 @@ class StackingWeightModel(WeightModel):
         if self.cache_data:
             self.X = X
             self.y = y
-            self.coordinate_vector_list = coordinate_vector_list
-            self.coordinate_vector_dimension_ = len(coordinate_vector_list)
+            # TODO: Cache the weight_matrix, neighbor_matrix to make it compatible with the local diagonalization.
 
         cache_estimator = self.cache_estimator
         self.cache_estimator = True
