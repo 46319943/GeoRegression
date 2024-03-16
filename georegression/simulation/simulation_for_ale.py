@@ -1,9 +1,11 @@
+import os
 from functools import partial
 
 import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestRegressor
 
 from georegression.local_ale import weighted_ale
+from georegression.simulation.simulation import show_sample
 from georegression.simulation.simulation_utils import *
 from georegression.visualize.ale import plot_ale
 from georegression.weight_model import WeightModel
@@ -32,6 +34,7 @@ def coef_manual_gau():
 
     return coef_sum
 
+
 def coef_auto_gau_strong():
     coef_radial = radial_coefficient(np.array([0, 0]), 1 / np.sqrt(200))
     coef_dir = directional_coefficient(np.array([1, 1]))
@@ -56,13 +59,34 @@ def coef_auto_gau_strong():
 
     return coef_sum
 
+
+def coef_auto_gau_weak():
+    coef_radial = radial_coefficient(np.array([0, 0]), 1 / np.sqrt(200))
+    coef_dir = directional_coefficient(np.array([1, 1]))
+
+    gau_coef_list = []
+    for i in range(1000):
+        # Randomly generate the parameters for gaussian coefficient
+        center = np.random.uniform(-10, 10, 2)
+        amplitude = np.random.uniform(1, 2)
+        sign = np.random.choice([-1, 1])
+        amplitude *= sign
+        sigma1 = np.random.uniform(0.5, 5)
+        sigma2 = np.random.uniform(0.5, 5)
+        cov = np.random.uniform(-np.sqrt(sigma1 * sigma2), np.sqrt(sigma1 * sigma2))
+        sigma = np.array([[sigma1, cov], [cov, sigma2]])
+
+        coef_gau = gaussian_coefficient(center, sigma, amplitude=amplitude)
+        gau_coef_list.append(coef_gau)
+
+    coef_gau = coefficient_wrapper(np.sum, *gau_coef_list)
+    coef_sum = coefficient_wrapper(np.sum, coef_radial, coef_dir, coef_gau)
+
+    return coef_sum
+
+
 def f_interact(X, C, points):
     return interaction_function(C[0])(X[:, 0], X[:, 1], points) + 0
-
-
-f = f_interact
-coef_func = coef_manual_gau
-x2_coef = coefficient_wrapper(partial(np.multiply, 3), coef_func())
 
 
 def generate_sample(random_seed=1):
@@ -70,10 +94,14 @@ def generate_sample(random_seed=1):
 
     count = 5000
     points = sample_points(count, bounds=[[-10, 10], [-10, 10]])
-    x1 = sample_x(count, mean=coef_func(), bounds=(-1, 1), points=points)
-    x2_coef = coefficient_wrapper(partial(np.multiply, 3), coef_func())
-    x2 = sample_x(count, mean=x2_coef, bounds=(-2, 2), points=points)
 
+    coef_x1 = coef_auto_gau_weak()
+    coef_x2 = coefficient_wrapper(partial(np.multiply, 3), coef_x1)
+    x1 = sample_x(count, mean=coef_x1, bounds=(-1, 1), points=points)
+    x2 = sample_x(count, mean=coef_x2, bounds=(-2, 2), points=points)
+
+    f = f_interact
+    coef_func = coef_auto_gau_strong
     if isinstance(coef_func, list):
         coefficients = [func() for func in coef_func]
     else:
@@ -81,6 +109,10 @@ def generate_sample(random_seed=1):
 
     X = np.stack((x1, x2), axis=-1)
     y = f(X, coefficients, points)
+
+    folder = f"Plot/ALE_{coef_func.__name__}_{f.__name__}_{count}"
+    os.makedirs(folder, exist_ok=True)
+    show_sample(X, y, points, coefficients, folder)
 
     return X, y, points, f, coefficients
 
@@ -90,7 +122,7 @@ def draw_graph():
     X_plus = np.concatenate([X, points], axis=1)
     distance_measure = "euclidean"
     kernel_type = "bisquare"
-    neighbour_count = 0.05
+    neighbour_count = 0.03
 
     # local_estimator = DecisionTreeRegressor(splitter="random", max_depth=1)
     # local_estimator = DecisionTreeRegressor(splitter="random", max_depth=2)
@@ -111,8 +143,10 @@ def draw_graph():
         distance_measure,
         kernel_type,
         neighbour_count=neighbour_count,
-        cache_data=True,
-        cache_estimator=True,
+        cache_data=False,
+        cache_estimator=False,
+        # cache_data=True,
+        # cache_estimator=True,
     )
     model.fit(X, y, [points])
     print("GRF:", model.llocv_score_)

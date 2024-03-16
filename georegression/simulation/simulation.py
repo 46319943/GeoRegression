@@ -151,7 +151,7 @@ def generate_sample(random_seed=None, count=100, f=f, coef_func=coef_func):
     return X, y, points, f, coefficients
 
 
-def show_sample(X, y, points, coefficients):
+def show_sample(X, y, points, coefficients, folder="Plot"):
     """
     Show X, y, points, and coefficients in multiple subplots.
     Assume dimension of points is 2, which is a plane.
@@ -174,19 +174,19 @@ def show_sample(X, y, points, coefficients):
         plt.xlabel("x")
         plt.ylabel("y")
         plt.title(f"The {i+1}-th feature of X")
-        plt.savefig(f"Plot/Simulation_X_{i+1}.png")
+        plt.savefig(f"{folder}/Simulation_X_{i+1}.png")
 
     # Plot y using scatter and boxplot
     plt.figure()
     plt.scatter(points[:, 0], points[:, 1], c=y, cmap="Spectral")
     plt.colorbar()
     plt.title("The value of y across the plane")
-    plt.savefig("Plot/Simulation_y.png")
+    plt.savefig(f"{folder}/Simulation_y.png")
 
     plt.figure()
     plt.boxplot(y)
     plt.title("The distribution of y")
-    plt.savefig("Plot/Simulation_y_boxplot.png")
+    plt.savefig(f"{folder}/Simulation_y_boxplot.png")
 
     # Plot coefficients
     for i in range(dim_coef):
@@ -196,7 +196,7 @@ def show_sample(X, y, points, coefficients):
         )
         plt.colorbar()
         plt.title(f"The {i+1}-th coefficient across the plane")
-        plt.savefig(f"Plot/Simulation_Coefficients_{i}.png")
+        plt.savefig(f"{folder}/Simulation_Coefficients_{i}.png")
 
 
 def main():

@@ -147,8 +147,11 @@ def draw_graph():
     print(importance_local)
 
     # Normalize the local importance to [0, 1]
-    importance_local = (importance_local - importance_local.min(axis=0)) / (
-        importance_local.max(axis=0) - importance_local.min(axis=0)
+    # importance_local = (importance_local - importance_local.min(axis=0)) / (
+    #     importance_local.max(axis=0) - importance_local.min(axis=0)
+    # )
+    importance_local = (importance_local - importance_local.min(axis=1)) / (
+        importance_local.max(axis=1) - importance_local.min(axis=1)
     )
 
     # Plot the local importance
@@ -187,5 +190,5 @@ def fit_stacking():
 
 
 if __name__ == "__main__":
-    # draw_graph()
-    fit_stacking()
+    draw_graph()
+    # fit_stacking()

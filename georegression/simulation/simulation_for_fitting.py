@@ -1,12 +1,13 @@
 import json
+import os
 import time
-import georegression.visualize
 from functools import partial
 
-from matplotlib import pyplot as plt
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor
 from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import LeaveOneOut
 from sklearn.tree import DecisionTreeRegressor
+from xgboost import XGBRegressor
 
 from georegression.simulation.simulation import show_sample
 from georegression.simulation.simulation_utils import *
@@ -27,7 +28,11 @@ def fit_models(
     grf_n_estimators=50,
     gwr_neighbour_count=0.03,
     rf_n_estimators=2000,
+    info=None,
 ):
+    if info is None:
+        info = {}
+
     X_plus = np.concatenate([X, points], axis=1)
 
     distance_measure = "euclidean"
@@ -50,6 +55,22 @@ def fit_models(
     result["Stacking_Base"] = model.llocv_score_
     result["Stacking"] = model.llocv_stacking_
     result["Stacking_Time"] = t2 - t1
+
+    model = StackingWeightModel(
+        ExtraTreesRegressor(n_estimators=10, max_depth=X.shape[1]),
+        distance_measure,
+        kernel_type,
+        neighbour_count=stacking_neighbour_count,
+        neighbour_leave_out_rate=stacking_neighbour_leave_out_rate,
+    )
+    t1 = time.time()
+    model.fit(X_plus, y, [points])
+    t2 = time.time()
+    print("Stacking_Extra:", model.llocv_score_, model.llocv_stacking_)
+    print(t2 - t1)
+    result["Stacking_Extra_Base"] = model.llocv_score_
+    result["Stacking_Extra"] = model.llocv_stacking_
+    result["Stacking_Extra_Time"] = t2 - t1
 
     model = WeightModel(
         RandomForestRegressor(n_estimators=grf_n_estimators),
@@ -99,10 +120,39 @@ def fit_models(
     result["LR"] = model.score(X_plus, y)
     result["LR_Time"] = t2 - t1
 
+    result = {**result, **info}
     with open("simulation_result.jsonl", "a") as f:
         f.write(json.dumps(result) + "\n")
 
     return result
+
+
+def fit_llocv_models(
+    X,
+    y,
+    points,
+):
+    X_plus = np.concatenate([X, points], axis=1)
+    loo = LeaveOneOut()
+
+    n_estimators = 500
+
+    y_predicts = []
+    for train, test in loo.split(X_plus):
+        estimator = XGBRegressor(n_estimators=n_estimators, n_jobs=-1)
+        estimator.fit(X_plus[train], y[train])
+        y_predicts.append(estimator.predict(X_plus[test]))
+
+    from sklearn.metrics import r2_score
+
+    score = r2_score(y, y_predicts)
+
+    record = {
+        "n_estimators": n_estimators,
+        "score": score,
+    }
+
+    return record
 
 
 def coef_auto_gau_weak():
@@ -204,7 +254,9 @@ def generate_sample(count, f, coef_func, random_seed=1, plot=False):
     y = f(X, coefficients, points)
 
     if plot:
-        show_sample(X, y, points, coefficients)
+        folder = f"Plot/{coef_func.__name__}_{f.__name__}_{count}"
+        os.makedirs(folder, exist_ok=True)
+        show_sample(X, y, points, coefficients, folder)
 
     return X, y, points
 
@@ -224,7 +276,7 @@ def square_strong_100():
     #     "coef_strong",
     # )
 
-    fit_models(
+    return fit_models(
         X,
         y,
         points,
@@ -234,6 +286,7 @@ def square_strong_100():
         grf_n_estimators=50,
         gwr_neighbour_count=0.5,
         rf_n_estimators=2000,
+        info={"f": "f_square", "coef": "coef_strong", "count": 100},
     )
 
 
@@ -251,7 +304,7 @@ def square_strong_500():
     #     "coef_strong",
     # )
 
-    fit_models(
+    return fit_models(
         X,
         y,
         points,
@@ -261,6 +314,7 @@ def square_strong_500():
         grf_n_estimators=50,
         gwr_neighbour_count=0.2,
         rf_n_estimators=2000,
+        info={"f": "f_square", "coef": "coef_strong", "count": 500},
     )
 
 
@@ -281,7 +335,7 @@ def square_strong_1000():
     #     "coef_strong",
     # )
 
-    fit_models(
+    return fit_models(
         X,
         y,
         points,
@@ -291,6 +345,7 @@ def square_strong_1000():
         grf_n_estimators=50,
         gwr_neighbour_count=0.03,
         rf_n_estimators=2000,
+        info={"f": "f_square", "coef": "coef_strong", "count": 1000},
     )
 
 
@@ -310,7 +365,7 @@ def square_strong_5000():
     #     "coef_strong",
     # )
 
-    fit_models(
+    return fit_models(
         X,
         y,
         points,
@@ -320,6 +375,7 @@ def square_strong_5000():
         grf_n_estimators=50,
         gwr_neighbour_count=0.015,
         rf_n_estimators=2000,
+        info={"f": "f_square", "coef": "coef_strong", "count": 5000},
     )
 
 
@@ -340,7 +396,7 @@ def square_gau_strong_100():
     #     "coef_gau_strong",
     # )
 
-    fit_models(
+    return fit_models(
         X,
         y,
         points,
@@ -350,6 +406,7 @@ def square_gau_strong_100():
         grf_n_estimators=50,
         gwr_neighbour_count=0.5,
         rf_n_estimators=2000,
+        info={"f": "f_square", "coef": "coef_gau_strong", "count": 100},
     )
 
 
@@ -370,7 +427,7 @@ def square_gau_strong_500():
     #     "coef_gau_strong",
     # )
 
-    fit_models(
+    return fit_models(
         X,
         y,
         points,
@@ -380,6 +437,7 @@ def square_gau_strong_500():
         grf_n_estimators=50,
         gwr_neighbour_count=0.1,
         rf_n_estimators=2000,
+        info={"f": "f_square", "coef": "coef_gau_strong", "count": 500},
     )
 
 
@@ -400,7 +458,7 @@ def square_gau_strong_1000():
     #     "coef_gau_strong",
     # )
 
-    fit_models(
+    return fit_models(
         X,
         y,
         points,
@@ -410,6 +468,7 @@ def square_gau_strong_1000():
         grf_n_estimators=50,
         gwr_neighbour_count=0.04,
         rf_n_estimators=2000,
+        info={"f": "f_square", "coef": "coef_gau_strong", "count": 1000},
     )
 
 
@@ -430,7 +489,7 @@ def square_gau_strong_5000():
     #     "coef_gau_strong",
     # )
 
-    fit_models(
+    return fit_models(
         X,
         y,
         points,
@@ -440,7 +499,70 @@ def square_gau_strong_5000():
         grf_n_estimators=50,
         gwr_neighbour_count=0.01,
         rf_n_estimators=2000,
+        info={"f": "f_square", "coef": "coef_gau_strong", "count": 5000},
     )
+
+
+def square_gau_strong_10000():
+    X, y, points = generate_sample(
+        10000, f_square, coef_auto_gau_strong, random_seed=1, plot=True
+    )
+    test_models(
+        X,
+        y,
+        points,
+        [0.001, 0.002, 0.003, 0.005, 0.008, 0.01, 0.012, 0.015],
+        [0.05, 0.1, 0.15, 0.2],
+        [0.001, 0.002, 0.003, 0.005, 0.008, 0.01, 0.012, 0.015],
+        [0.001, 0.002, 0.003, 0.005, 0.008, 0.01, 0.012, 0.015],
+        10000,
+        "f_square",
+        "coef_gau_strong",
+    )
+
+    # return fit_models(
+    #     X,
+    #     y,
+    #     points,
+    #     stacking_neighbour_count=0.008,
+    #     stacking_neighbour_leave_out_rate=0.2,
+    #     grf_neighbour_count=0.01,
+    #     grf_n_estimators=50,
+    #     gwr_neighbour_count=0.01,
+    #     rf_n_estimators=2000,
+    #     info={"f": "f_square", "coef": "coef_gau_strong", "count": 10000},
+    # )
+
+
+def square_gau_strong_50000():
+    X, y, points = generate_sample(
+        50000, f_square, coef_auto_gau_strong, random_seed=1, plot=True
+    )
+    test_models(
+        X,
+        y,
+        points,
+        [0.001, 0.002, 0.003, 0.005, 0.008, 0.01, 0.012, 0.015],
+        [0.05, 0.1, 0.15, 0.2],
+        [0.001, 0.002, 0.003, 0.005, 0.008, 0.01, 0.012, 0.015],
+        [0.001, 0.002, 0.003, 0.005, 0.008, 0.01, 0.012, 0.015],
+        50000,
+        "f_square",
+        "coef_gau_strong",
+    )
+
+    # return fit_models(
+    #     X,
+    #     y,
+    #     points,
+    #     stacking_neighbour_count=0.008,
+    #     stacking_neighbour_leave_out_rate=0.2,
+    #     grf_neighbour_count=0.01,
+    #     grf_n_estimators=50,
+    #     gwr_neighbour_count=0.01,
+    #     rf_n_estimators=2000,
+    #     info={"f": "f_square", "coef": "coef_gau_strong", "count": 50000},
+    # )
 
 
 def square_gau_weak_100():
@@ -460,7 +582,7 @@ def square_gau_weak_100():
     #     "coef_gau_weak",
     # )
 
-    fit_models(
+    return fit_models(
         X,
         y,
         points,
@@ -470,6 +592,7 @@ def square_gau_weak_100():
         grf_n_estimators=50,
         gwr_neighbour_count=0.3,
         rf_n_estimators=2000,
+        info={"f": "f_square", "coef": "coef_gau_weak", "count": 100},
     )
 
 
@@ -490,7 +613,7 @@ def square_gau_weak_500():
     #     "coef_gau_weak",
     # )
 
-    fit_models(
+    return fit_models(
         X,
         y,
         points,
@@ -500,6 +623,7 @@ def square_gau_weak_500():
         grf_n_estimators=50,
         gwr_neighbour_count=0.1,
         rf_n_estimators=2000,
+        info={"f": "f_square", "coef": "coef_gau_weak", "count": 500},
     )
 
 
@@ -520,7 +644,7 @@ def square_gau_weak_1000():
     #     "coef_gau_weak",
     # )
 
-    fit_models(
+    return fit_models(
         X,
         y,
         points,
@@ -530,6 +654,7 @@ def square_gau_weak_1000():
         grf_n_estimators=50,
         gwr_neighbour_count=0.06,
         rf_n_estimators=2000,
+        info={"f": "f_square", "coef": "coef_gau_weak", "count": 1000},
     )
 
 
@@ -550,7 +675,7 @@ def square_gau_weak_5000():
     #     "coef_gau_weak",
     # )
 
-    fit_models(
+    return fit_models(
         X,
         y,
         points,
@@ -560,6 +685,7 @@ def square_gau_weak_5000():
         grf_n_estimators=50,
         gwr_neighbour_count=0.02,
         rf_n_estimators=2000,
+        info={"f": "f_square", "coef": "coef_gau_weak", "count": 5000},
     )
 
 
@@ -592,7 +718,7 @@ def square_2_gau_strong_weak_5000():
     #     "coef_gau_strong2_weak",
     # )
 
-    fit_models(
+    return fit_models(
         X,
         y,
         points,
@@ -602,7 +728,110 @@ def square_2_gau_strong_weak_5000():
         grf_n_estimators=50,
         gwr_neighbour_count=0.02,
         rf_n_estimators=2000,
+        info={"f": "f_square_2", "coef": "coef_gau_strong2_weak", "count": 5000},
     )
+
+
+def interact_ale():
+    random_seed = 1
+    np.random.seed(random_seed)
+
+    def coef_manual_gau():
+        coef_radial = radial_coefficient(np.array([0, 0]), 1 / np.sqrt(200))
+        coef_dir = directional_coefficient(np.array([1, 1]))
+
+        coef_gau_1 = gaussian_coefficient(
+            np.array([-5, 5]), [[3, 4], [4, 8]], amplitude=-1
+        )
+        coef_gau_2 = gaussian_coefficient(np.array([-2, -5]), 5, amplitude=2)
+        coef_gau_3 = gaussian_coefficient(np.array([8, 3]), 10, amplitude=-1.5)
+        coef_gau_4 = gaussian_coefficient(
+            np.array([2, 8]), [[3, 0], [0, 15]], amplitude=0.8
+        )
+        coef_gau_5 = gaussian_coefficient(np.array([5, -10]), 1, amplitude=1)
+        coef_gau_6 = gaussian_coefficient(np.array([-10, -10]), 15, amplitude=1.5)
+        coef_gau_6 = gaussian_coefficient(np.array([-11, 0]), 5, amplitude=2)
+        coef_gau_6 = gaussian_coefficient(np.array([-11, 0]), 5, amplitude=2)
+        coef_gau = coefficient_wrapper(
+            np.sum,
+            coef_gau_1,
+            coef_gau_2,
+            coef_gau_3,
+            coef_gau_4,
+            coef_gau_5,
+            coef_gau_6,
+        )
+
+        # coef_sum = coefficient_wrapper(np.sum, coef_radial, coef_dir, coef_gau)
+        coef_sum = coefficient_wrapper(np.sum, coef_radial, coef_gau)
+
+        return coef_sum
+
+    count = 5000
+    points = sample_points(count, bounds=[[-10, 10], [-10, 10]])
+
+    coef_x1 = coef_auto_gau_weak()
+    coef_x2 = coefficient_wrapper(partial(np.multiply, 3), coef_x1)
+    x1 = sample_x(count, mean=coef_x1, bounds=(-1, 1), points=points)
+    x2 = sample_x(count, mean=coef_x2, bounds=(-2, 2), points=points)
+
+    f = f_interact
+    coef_func = coef_auto_gau_strong
+
+    if isinstance(coef_func, list):
+        coefficients = [func() for func in coef_func]
+    else:
+        coefficients = [coef_func()]
+
+    X = np.stack((x1, x2), axis=-1)
+    y = f(X, coefficients, points)
+
+    # distance_measure = "euclidean"
+    # kernel_type = "bisquare"
+    # neighbour_count = 0.03
+    # model = WeightModel(
+    #     RandomForestRegressor(n_estimators=50),
+    #     distance_measure,
+    #     kernel_type,
+    #     neighbour_count=neighbour_count,
+    #     cache_data=False,
+    #     cache_estimator=False,
+    #     # cache_data=True,
+    #     # cache_estimator=True,
+    # )
+    # model.fit(X, y, [points])
+    # print("GRF:", model.llocv_score_)
+
+    test_models(
+        X,
+        y,
+        points,
+        [],
+        # [0.02, 0.03, 0.04, 0.05],
+        [],
+        # [0.1, 0.15, 0.2, 0.25],
+        [0.02, 0.03, 0.04, 0.05],
+        [0.02, 0.03, 0.04, 0.05],
+        5000,
+        "f_interact",
+        "coef_gau_strong2_weak",
+    )
+
+
+def test_llocv():
+    func = f_square
+
+    for count in [100, 500, 1000, 5000]:
+        for coef in [coef_strong, coef_auto_gau_strong, coef_auto_gau_weak]:
+            X, y, points = generate_sample(count, func, coef, random_seed=1, plot=True)
+
+            result = fit_llocv_models(X, y, points)
+
+            with open("simulation_result_llocv.jsonl", "a") as f:
+                result["count"] = count
+                result["func"] = func.__name__
+                result["coef"] = coef.__name__
+                f.write(json.dumps(result) + "\n")
 
 
 def test_models(
@@ -671,7 +900,7 @@ def test_GRF(X, y, points, neighbour_counts):
             if use_x_plus:
                 model.fit(X_plus, y, [points])
             else:
-                model.fit(X_plus, y, [points])
+                model.fit(X, y, [points])
             print("GRF:", model.llocv_score_, neighbour_count, use_x_plus)
             result.append(
                 {
@@ -750,7 +979,7 @@ def test_GWR(X, y, points, neighbour_counts):
             if use_x_plus:
                 model.fit(X_plus, y, [points])
             else:
-                model.fit(X_plus, y, [points])
+                model.fit(X, y, [points])
             print("GWR:", model.llocv_score_, neighbour_count, use_x_plus)
             result.append(
                 {
@@ -776,6 +1005,13 @@ if __name__ == "__main__":
     # square_gau_weak_500()
     # square_gau_weak_1000()
     # square_gau_weak_5000()
-    square_2_gau_strong_weak_5000()
+    # square_2_gau_strong_weak_5000()
+
+    # test_llocv()
+
+    # square_gau_strong_10000()
+    # square_gau_strong_50000()
+
+    interact_ale()
 
     pass
