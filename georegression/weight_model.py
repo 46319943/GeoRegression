@@ -218,6 +218,23 @@ def local_partial_dependence(local_estimator, X_local, weight, n_features_in_):
     return feature_list
 
 
+def local_importance(local_estimator, X_local, y_local, weight, n_repeats=5):
+    """
+    Wrapper for parallel local importance calculation
+    """
+    importance_result = permutation_importance(
+        local_estimator,
+        X_local,
+        y_local,
+        sample_weight=weight,
+        n_repeats=n_repeats,
+    )
+
+    print('One local finished')
+        
+    return importance_result.importances_mean
+
+
 class WeightModel(BaseEstimator, RegressorMixin):
     """
     Inherit from sklearn BaseEstimator to support sklearn workflow, e.g. GridSearchCV.
@@ -442,7 +459,7 @@ class WeightModel(BaseEstimator, RegressorMixin):
 
         return local_predict
 
-    def importance_score_local(self, n_repeats=5):
+    def importance_score_local(self, n_repeats=5, n_jobs=-1):
         """
         Calculate the importance score using permutation test (MDA, Mean decrease accuracy) for each local estimators.
 
@@ -458,21 +475,19 @@ class WeightModel(BaseEstimator, RegressorMixin):
         if not self.cache_data or not self.cache_estimator:
             raise Exception('Importance score of local needs cache_data and cache_estimator set True')
 
-        importance_matrix = []
-        for local_index, local_estimator in enumerate(self.local_estimator_list):
+        job_list = []
+        for local_index in range(self.N):
+            local_estimator = self.local_estimator_list[local_index]
             weight = self.weight_matrix_[local_index]
             neighbour_mask = self.neighbour_matrix_[local_index]
 
-            # Select X to speed up calculation
-            importance_result = permutation_importance(
-                local_estimator,
-                self.X[neighbour_mask],
-                self.y[neighbour_mask],
-                sample_weight=weight[neighbour_mask],
-                n_repeats=n_repeats,
-                n_jobs=self.n_jobs
+            job_list.append(
+                delayed(local_importance)(
+                    local_estimator, self.X[neighbour_mask], self.y[neighbour_mask], weight[neighbour_mask], n_repeats
+                )
             )
-            importance_matrix.append(importance_result.importances_mean)
+
+        importance_matrix = Parallel(n_jobs=n_jobs)(job_list)
         importance_matrix = np.array(importance_matrix)
 
         return importance_matrix

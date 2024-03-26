@@ -9,7 +9,7 @@ from sklearn.neighbors import KernelDensity
 def plot_ale(fvals, ale, x):
     fig, ax1 = plt.subplots(figsize=(12, 6))
 
-    ax1.plot(fvals, ale, zorder=2, label='Local ALE')
+    ax1.plot(fvals, ale, zorder=2, label='STALE')
     ax1.grid(True, which='both', linestyle='--', linewidth=0.5)
 
     ax1.set_xlabel('Feature value')
