@@ -80,6 +80,7 @@ def _distance_matrix(source_coord, target_coord, metric, use_dask, cache_sort, *
                 return da.from_zarr(filepath)
 
         if target_coord is None:
+            # TODO: Size error even after the rechunk.
             distance_matrix = dask_distance.pdist(source_coord, metric=metric)
         else:
             distance_matrix = dask_distance.cdist(source_coord, target_coord, metric=metric)

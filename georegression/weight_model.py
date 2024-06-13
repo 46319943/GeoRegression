@@ -61,6 +61,9 @@ def _fit(X, y, estimator_list, weight_matrix,
 
     if n_jobs is not None and n_patches is not None:
         raise ValueError("Cannot specify both `n_jobs` and `n_patches`")
+    if n_jobs is None and n_patches is None:
+        import multiprocessing
+        n_patches = multiprocessing.cpu_count()
 
     t_start = time()
 
@@ -337,6 +340,7 @@ class WeightModel(BaseEstimator, RegressorMixin):
         if self.cache_data:
             self.X = X
             self.y = y
+            self.coordinate_vector_list = coordinate_vector_list
 
         if weight_matrix is None:
             weight_matrix = weight_matrix_from_points(coordinate_vector_list, coordinate_vector_list, self.distance_measure, self.kernel_type, self.distance_ratio, self.bandwidth,
@@ -445,8 +449,13 @@ class WeightModel(BaseEstimator, RegressorMixin):
             raise Exception('At least one of coordinate_vector_list or weight_matrix should be provided')
 
         if weight_matrix is None:
-            weight_matrix = weight_matrix_from_points(coordinate_vector_list, self.coordinate_vector_list, self.distance_measure, self.kernel_type, self.distance_ratio, self.bandwidth,
-                                                      self.neighbour_count, self.distance_args)
+            # weight_matrix = weight_matrix_from_points(coordinate_vector_list, self.coordinate_vector_list,
+            #                                           self.distance_measure, self.kernel_type, self.distance_ratio,
+            #                                           self.bandwidth, self.neighbour_count, self.distance_args)
+            weight_matrix = weight_matrix_from_points(self.coordinate_vector_list, coordinate_vector_list,
+                                                      self.distance_measure, self.kernel_type, self.distance_ratio,
+                                                      self.bandwidth, self.neighbour_count, self.distance_args)
+            weight_matrix = weight_matrix.T.copy()
 
         N = X.shape[0]
 

@@ -67,8 +67,8 @@ def _second_order_neighbour_sparse(
 
 @njit(parallel=True)
 def _second_order_neighbour_dense(neighbour_matrix, neighbour_leave_out):
-    second_order_matrix = np.empty_like(neighbour_matrix)
-    for i in prange(neighbour_matrix.shape[0]):
+    second_order_matrix = np.empty((neighbour_matrix.shape[1], neighbour_matrix.shape[1]), dtype=np.bool_)
+    for i in prange(neighbour_matrix.shape[1]):
         second_order_matrix[i] = np.sum(
             neighbour_matrix[neighbour_leave_out[i]], axis=0
         )
