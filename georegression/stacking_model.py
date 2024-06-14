@@ -192,6 +192,7 @@ class StackingWeightModel(WeightModel):
         *args,
         **kwargs
     ):
+        # TODO: _fit require n_patches to be set. In the parent class, the n_patches will be set automatically if n_jobs is not set.
         super().__init__(
             local_estimator,
             distance_measure=distance_measure,
