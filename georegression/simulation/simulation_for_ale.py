@@ -9,6 +9,13 @@ from georegression.simulation.simulation_utils import *
 from georegression.visualize.ale import plot_ale
 from georegression.weight_model import WeightModel
 
+# Font family
+plt.rcParams["font.family"] = "Times New Roman"
+plt.rcParams["font.size"] = 18
+plt.rcParams["axes.labelsize"] = 18
+plt.rcParams['font.weight'] = 'bold'
+plt.rcParams['xtick.labelsize'] = 15
+plt.rcParams['ytick.labelsize'] = 15
 
 def coef_manual_gau():
     coef_radial = radial_coefficient(np.array([0, 0]), 1 / np.sqrt(200))
@@ -169,18 +176,23 @@ def draw_graph():
         ale = ale - diff
 
         fig = plot_ale(fval, ale, x_neighbour)
-        ax = fig.get_axes()[0]
+        fig.set_size_inches(10, 6)
+        ax1 = fig.get_axes()[0]
+        ax2 = fig.get_axes()[1]
 
-        ax.set_xlabel("Feature value")
-        ax.set_ylabel("Function value")
+        ax1.set_xlabel("Feature value", fontweight='bold')
+        ax1.set_ylabel("Function value", fontweight='bold')
+        ax2.set_ylabel('Density', fontweight='bold')
 
-        scatter = ax.scatter(x_neighbour, y_neighbour, c=weight_neighbour)
-        ax.scatter(
+        scatter = ax1.scatter(x_neighbour, y_neighbour, c=weight_neighbour)
+        ax1.scatter(
             X[local_index, feature_index], y[local_index], c="red", label="Local point"
         )
-        fig.colorbar(scatter, ax=ax, label="Weight")
+        cbar = fig.colorbar(scatter, ax=ax1, label="Weight", pad=0.1)
+        cbar.set_label('Weight', weight='bold')
+        cbar.ax.tick_params(labelsize=15)
 
-        ax.plot(x_gird, y_grid, label="True value")
+        ax1.plot(x_gird, y_grid, label="True value")
 
         # Neighbor ALE, which only consider the neighbor points but not weight is considered
         # ale_result = weighted_ale(
@@ -215,20 +227,21 @@ def draw_graph():
         diff = ale[0] - base_value_real
         ale = ale - diff
 
-        ax.plot(fval, ale, label="ALE")
+        ax1.plot(fval, ale, label="ALE")
 
         # ALE True value
         # y_grid_ale = (x2_coef(points[local_index])* x_gird)
         # ax.plot(x_gird, y_grid_ale, label="True ALE")
 
         # Add legend
-        handles, labels = ax.get_legend_handles_labels()
+        handles, labels = ax1.get_legend_handles_labels()
         handles.append(scatter)
         labels.append("Weight")
-        ax.legend(handles, labels)
+        ax1.legend(handles, labels, fontsize=15)
 
-        os.makedirs("Plot/LocalAle", exist_ok=True)
-        plt.savefig(f"Plot/LocalAle/{local_index}.png", dpi=300)
+        folder_name = "Plot/LocalAle_BigFont"
+        os.makedirs(folder_name, exist_ok=True)
+        plt.savefig(f"{folder_name}/{local_index}.png", dpi=300)
         plt.close()
         # plt.show(block=True)
 
