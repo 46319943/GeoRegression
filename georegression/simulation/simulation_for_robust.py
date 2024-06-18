@@ -158,6 +158,21 @@ def fit_models(
     model.fit(X_plus_test, y_test)
     print("RF Fit on Test:", model.oob_score_)
 
+    # loo = LeaveOneOut()
+    # y_predicts = []
+    # for train, test in loo.split(X_plus):
+    #     estimator = XGBRegressor(n_estimators=rf_n_estimators, n_jobs=-1)
+    #     estimator.fit(X_plus[train], y[train])
+    #     y_predicts.append(estimator.predict(X_plus[test]))
+    # score = r2_score(y, y_predicts)
+    # print("XGB:", score)
+
+    model = XGBRegressor(n_estimators=rf_n_estimators, n_jobs=-1)
+    model.fit(X_plus, y)
+    prediction = model.predict(X_plus_test)
+    score = r2_score(y_test, prediction)
+    print("XGB Prediction:", score)
+
     model = LinearRegression()
     t1 = time.time()
     model.fit(X_plus, y)
