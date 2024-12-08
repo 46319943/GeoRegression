@@ -1,5 +1,5 @@
 # GeoRegression
-> A geospatial based framework for conducting non-linear regression.
+> A geospatial framework for performing non-linear regression, designed to effectively model complex spatial relationships.
 
 <p align="center">
   <img src="Images/icon.png" width="200">
@@ -11,7 +11,7 @@
   <a href="https://www.python.org/downloads/release/python-370/"><img src="https://img.shields.io/badge/python-3.7+-blue.svg" alt="Python"></a>
 </p>
 
-This Python package provides a framework for conducting regression model on the geospatial data by incorporating the spatial information of the data to solve the problem of spatial non-stationarity. The SpatioTemporal Random Forest (STRF) and SpatioTemporal Stacking Tree (STST) are built on top of this framework. 
+This Python package offers a robust framework for regression modeling on geospatial data, addressing the challenge of spatial non-stationarity by integrating spatial information directly into the modeling process. Built on this framework are two advanced methods: the *SpatioTemporal Random Forest* (STRF) and the *SpatioTemporal Stacking Tree* (STST), which leverage spatial and temporal patterns to enhance predictive accuracy.
 
 ![Illustration for STRF and STST](Images/pipeline.png)
 
