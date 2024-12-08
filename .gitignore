@@ -1,11 +1,12 @@
 Demo
 **/Plot
-*.png
-*.jpg
-*.html
-*.pkl
-*.json*
-*.gpkg*
+georegression/**/*.png
+georegression/**/*.jpg
+georegression/**/*.html
+georegression/**/*.pkl
+georegression/**/*.json
+georegression/**/*.jsonl
+georegression/**/*.gpkg
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

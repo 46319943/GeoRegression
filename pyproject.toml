@@ -4,9 +4,9 @@ build-backend = "hatchling.build"
 
 [project]
 name = "georegression"
-version = "0.0.1"
+version = "1.0.0"
 authors = [
-    { name = "PiaoYang", email = "piaoyang1999@gmail.com" },
+    { name = "PiaoYang" },
 ]
 description = "georegression"
 readme = "README.md"
@@ -33,5 +33,5 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/pypa/sampleproject"
-"Bug Tracker" = "https://github.com/pypa/sampleproject/issues"
+"Homepage" = "https://github.com/46319943/GeoRegression"
+"Bug Tracker" = "https://github.com/46319943/GeoRegression/issues"
