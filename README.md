@@ -172,8 +172,22 @@ model.fit(X_plus, y, [points, times])
 
 # Citation
 If you find this package useful in your research, please consider citing:
-
+- Luo, Y., & Su, S. (2025). SpatioTemporal Random Forest and SpatioTemporal Stacking Tree: A novel spatially explicit ensemble learning approach to modeling non-linearity in spatiotemporal non-stationarity. International Journal of Applied Earth Observation and Geoinformation, 136, 104315. https://doi.org/10.1016/j.jag.2024.104315
 ```
-TODO: Add citation
+@article{luo_spatiotemporal_2025,
+	title = {{SpatioTemporal} {Random} {Forest} and {SpatioTemporal} {Stacking} {Tree}: {A} novel spatially explicit ensemble learning approach to modeling non-linearity in spatiotemporal non-stationarity},
+	volume = {136},
+	issn = {1569-8432},
+	shorttitle = {{SpatioTemporal} {Random} {Forest} and {SpatioTemporal} {Stacking} {Tree}},
+	url = {https://www.sciencedirect.com/science/article/pii/S1569843224006733},
+	doi = {10.1016/j.jag.2024.104315},
+	urldate = {2024-12-30},
+	journal = {International Journal of Applied Earth Observation and Geoinformation},
+	author = {Luo, Yun and Su, Shiliang},
+	month = feb,
+	year = {2025},
+	keywords = {Ensemble learning, Machine learning, Nonlinearity, Spatially explicit modeling, Spatiotemporal non-stationarity, Spatiotemporal random forest, Spatiotemporal stacking tree},
+	pages = {104315},
+}
 ```
 
