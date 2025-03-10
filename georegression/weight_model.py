@@ -232,8 +232,6 @@ def local_importance(local_estimator, X_local, y_local, weight, n_repeats=5):
         sample_weight=weight,
         n_repeats=n_repeats,
     )
-
-    print('One local finished')
         
     return importance_result.importances_mean
 

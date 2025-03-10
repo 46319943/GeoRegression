@@ -148,7 +148,7 @@ score = r2_score(y_test, y_predict)
 print(score)
 ```
 
-## SpatioTemporal
+## SpatioTemporal Dimension
 - To use more than one dimension of spatial information, just add the new dimension to the input data.
 
 ```python
@@ -169,6 +169,103 @@ model = WeightModel(
 )
 model.fit(X_plus, y, [points, times])
 ```
+
+## Posterior Inspection Tools
+GeoRegression provides powerful tools for model interpretation and analysis after fitting. Here are two key features:
+
+### Feature Importance Analysis
+You can analyze both global and local feature importance to understand how different features contribute to predictions across space:
+
+```python
+from georegression.weight_model import WeightModel
+from sklearn.ensemble import RandomForestRegressor
+
+# Fit the model
+model = WeightModel(
+    RandomForestRegressor(n_estimators=50),
+    distance_measure="euclidean",
+    kernel_type="bisquare",
+    neighbour_count=0.02
+)
+model.fit(X, y, [points])
+
+# Get global feature importance
+importance_global = model.importance_score_global()
+print("Global Importance Score: ", importance_global)
+
+# Get local feature importance
+importance_local = model.importance_score_local()
+
+# Visualize local importance for each feature
+import matplotlib.pyplot as plt
+
+for i in range(importance_local.shape[1]):
+    plt.figure()
+    scatter = plt.scatter(
+        points[:, 0], points[:, 1], 
+        c=importance_local[:, i], 
+        cmap="viridis"
+    )
+    plt.colorbar(scatter)
+    plt.title(f"Local Importance of Feature {i}")
+    plt.show()
+```
+
+Example visualization of local feature importance:
+
+<p align="center">
+  <img src="Images/Local_importance_0.png" width="600">
+  <br>
+  <em>Local importance visualization showing spatial variation in feature influence</em>
+</p>
+
+### SpatioTemporal (Local) Accumulated Local Effects (STALE) Plots
+STALE plots help understand how features affect predictions locally:
+
+```python
+from georegression.local_ale import weighted_ale
+from georegression.visualize.ale import plot_ale
+
+# For a specific location (local_index)
+feature_index = 0  # Feature to analyze
+local_index = 0    # Location to analyze
+
+# Get local estimator and data
+estimator = model.local_estimator_list[local_index]
+neighbour_mask = model.neighbour_matrix_[local_index]
+neighbour_weight = model.weight_matrix_[local_index][neighbour_mask]
+X_local = model.X[neighbour_mask]
+
+# Calculate ALE
+ale_result = weighted_ale(
+    X_local, 
+    feature_index, 
+    estimator.predict, 
+    neighbour_weight
+)
+fval, ale = ale_result
+
+# Plot ALE with weighted observations
+x_neighbour = X[model.neighbour_matrix_[local_index], feature_index]
+y_neighbour = y[model.neighbour_matrix_[local_index]]
+weight_neighbour = model.weight_matrix_[local_index, model.neighbour_matrix_[local_index]]
+
+fig = plot_ale(fval, ale, x_neighbour)
+plt.show()
+```
+
+Example STALE plot:
+
+<p align="center">
+  <img src="Images/STALE_20.png" width="600">
+  <br>
+  <em>STALE plot showing the local accumulated effects of a feature at a specific location</em>
+</p>
+
+These tools provide insights into:
+- How different features influence predictions globally and locally
+- How feature effects vary across space
+- The strength and nature of spatial relationships in your data
 
 # Citation
 If you find this package useful in your research, please consider citing:
