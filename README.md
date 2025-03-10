@@ -15,6 +15,21 @@ This Python package offers a robust framework for regression modeling on geospat
 
 ![Illustration for STRF and STST](Images/pipeline.png)
 
+## Table of Contents
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+  - [Data Preparation](#data-preparation)
+  - [SpatioTemporal Random Forest (STRF)](#spatiotemporal-random-forest-strf)
+  - [SpatioTemporal Stacking Tree (STST)](#spatiotemporal-stacking-tree-stst)
+  - [GWR / GTWR](#gwr--gtwr)
+  - [Prediction](#prediction)
+  - [SpatioTemporal Dimension](#spatiotemporal-dimension)
+  - [Posterior Inspection Tools](#posterior-inspection-tools)
+    - [Feature Importance Analysis](#feature-importance-analysis)
+    - [SpatioTemporal (Local) Accumulated Local Effects (STALE) Plots](#spatiotemporal-local-accumulated-local-effects-stale-plots)
+- [Citation](#citation)
+
+
 # Installation
 
 Python with version >= 3.7 is required.
