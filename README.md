@@ -59,9 +59,14 @@ Several parameters are shared across different model implementations and are use
   - `'bisquare'`: A commonly used kernel that provides smooth distance-based weighting
   - `'gaussian'`: Gaussian kernel for distance-based weighting
 
-- `neighbour_count`: Controls the kernel bandwidth for spatial weighting:
-  - If an integer (e.g., 50): Uses a fixed kernel bandwidth equal to the distance to the specified number of nearest neighbors
-  - If a decimal between 0 and 1 (e.g., 0.3): Uses an adaptive kernel bandwidth equal to the distance to the specified percentage of nearest neighbors
+- `neighbour_count`: Controls the adaptive kernel bandwidth for spatial weighting:
+  - Must be a decimal between 0 and 1 (e.g., 0.3)
+  - Uses an adaptive kernel bandwidth equal to the distance to the specified percentage of nearest neighbors
+
+- `bandwidth`: Optional parameter for fixed kernel bandwidth:
+  - If an integer value is provided, uses this fixed distance as the kernel bandwidth
+  - This bandwidth will be applied uniformly to all data points
+  - When specified, this takes precedence over `neighbour_count`
 
 ## SpatioTemporal Random Forest (STRF)
 - The `WeightModel` class provides the basic weighted framework for regression.
