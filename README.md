@@ -19,6 +19,7 @@ This Python package offers a robust framework for regression modeling on geospat
 - [Installation](#installation)
 - [Quick Start](#quick-start)
   - [Data Preparation](#data-preparation)
+  - [Shared Parameter Explanation](#shared-parameter-explanation)
   - [SpatioTemporal Random Forest (STRF)](#spatiotemporal-random-forest-strf)
   - [SpatioTemporal Stacking Tree (STST)](#spatiotemporal-stacking-tree-stst)
   - [GWR / GTWR](#gwr--gtwr)
@@ -50,6 +51,17 @@ from georegression.simulation.simulation_for_fitting import generate_sample, f_s
 X, y, points = generate_sample(500, f_square, coef_strong, random_seed=1, plot=True)
 X_plus = np.concatenate([X, points], axis=1)
 ```
+
+## Shared Parameter Explanation
+Several parameters are shared across different model implementations and are used to construct weight matrices for both spatial and spatiotemporal dimensions:
+
+- `kernel_type`: Determines the kernel function used for spatial weighting. Accepts standard kernel types:
+  - `'bisquare'`: A commonly used kernel that provides smooth distance-based weighting
+  - `'gaussian'`: Gaussian kernel for distance-based weighting
+
+- `neighbour_count`: Controls the kernel bandwidth for spatial weighting:
+  - If an integer (e.g., 50): Uses a fixed kernel bandwidth equal to the distance to the specified number of nearest neighbors
+  - If a decimal between 0 and 1 (e.g., 0.3): Uses an adaptive kernel bandwidth equal to the distance to the specified percentage of nearest neighbors
 
 ## SpatioTemporal Random Forest (STRF)
 - The `WeightModel` class provides the basic weighted framework for regression.
